@@ -6,53 +6,20 @@ from dotenv import load_dotenv
 import os
 
 
-
 if len(sys.argv) > 1:
-    year = sys.argv[1]
+    year = int(sys.argv[1])
 else:
-    print(f"Usage: python build_db.py [YEAR]")
+    print("Usage: python build_db.py [YEAR]")
     sys.exit()
 
-def main():
-    print(f"Getting NFL data for {year}")
-    events = nflscraper.events_list(year)
-    for event in events:
-        game = extract_game_attributes(event)
-        #weather = nflscraper.get_weather_by_coordinates(game["lat"], game["lon"], game["date"], game["time"])
-        
-        # extract game summary
-
-
-def extract_game_attributes(espn_event: dict) -> dict:
-    game = {
-        "id": int(espn_event["id"]),
-        "home_score": int(espn_event["competitions"][0]["competitors"][0]["score"]),
-        "away_score": int(espn_event["competitions"][0]["competitors"][1]["score"]),
-        "home_team_id": int(espn_event["competitions"][0]["competitors"][0]["id"]),
-        "away_team_id": int(espn_event["competitions"][0]["competitors"][1]["id"]),
-        "home_team_name": espn_event["competitions"][0]["competitors"][0]["team"]["displayName"],
-        "away_team_name": espn_event["competitions"][0]["competitors"][1]["team"]["displayName"],
-        "stadium": espn_event["competitions"][0]["venue"]["fullName"],
-        "city": espn_event["competitions"][0]["venue"]["address"]["city"],
-        "state": espn_event["competitions"][0]["venue"]["address"].get("state", None),
-        "date": datetime.fromisoformat(espn_event["date"]).strftime("%Y-%m-%d"),
-        "time": datetime.fromisoformat(espn_event["date"]).strftime("%H:%M"),
-        "season": int(espn_event["season"]["year"]),
-        "week": int(espn_event["week"]["number"])
-    }
-    # increase the week number for post season games since espn restarts week count in the post season
-    if(int(espn_event["season"]["type"]) == 3): game["week"] += 18 if game["season"] >= 2021 else 17
-    # compute the latitude and longitude of the game to obtain weather data
-    locationName = f"{game['stadium']} {game['city']} {"" if game["state"] is None else game["state"]}"
-    game["lat"], game["lon"] = nflscraper.getLocationCoords(locationName)
-    return game
-
-class nflscraper:
+class nflscraper():
     __loc = Nominatim(user_agent="GetLoc")
     # Load environment variables from .env file
     load_dotenv()
     warnings.filterwarnings("ignore", category=FutureWarning)
-    def get_weather_by_coordinates(lat, lon, date, time):
+    def __init__(self):
+        return
+    def get_weather_by_coordinates(self, lat, lon, date, time):
         """
         Fetches weather data for a specific location, date, and time using the Visual Crossing API.
         
@@ -73,7 +40,6 @@ class nflscraper:
         
         # Combine date and time, then convert to a datetime object
         datetime_obj = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H:%M")
-        timestamp = int(datetime_obj.timestamp())  # Convert datetime to Unix timestamp
         
         # Visual Crossing API endpoint for weather data
         url = f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/{lat},{lon}/{date}?unitGroup=metric&key={api_key}&contentType=json"
@@ -99,7 +65,7 @@ class nflscraper:
         else:
             print(f"Error: Unable to fetch data. Status code {response.status_code}")
             return None
-    def getLocationCoords(stadium_name: str):
+    def getLocationCoords(self, stadium_name: str):
         location = nflscraper.__loc.geocode(stadium_name)
         # if there is an issue, then it likely has to do with the stadium name, so we'll keep City + state
         while location is None and len(stadium_name) > 0:
@@ -109,19 +75,59 @@ class nflscraper:
             print("Couldn't find lat/lon")
             sys.exit()
         return location.latitude, location.longitude
-    def events_list(year: int) -> dict:
-        return requests.get(nflscraper.__event_api_string(year)).json()["events"]
-    def interpret_boxscore(event) -> dict:
-        boxscore = requests.get(nflscraper.__boxscore_api_string(event)).json()["boxscore"]
+    def events_list(self, year: int) -> dict:
+        return requests.get(self.__event_api_string(year)).json()["events"]
+    def interpret_boxscore(self, event) -> dict:
+        boxscore = requests.get(self.__boxscore_api_string(event)).json()["boxscore"]
         for team in boxscore["players"]:
             team_id = team["team"]["id"]
             for stat in team["statistics"]:
                 stat_name = stat["name"]
+
+        return boxscore
                 
-    def __boxscore_api_string(event) -> str:
+    def __boxscore_api_string(self, event) -> str:
         return f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event={event}"
-    def __event_api_string(year: int) -> str:
+    def __event_api_string(self, year: int) -> str:
         return f"https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?limit=1000&dates={year}"
+
+
+
+def main():
+    ns = nflscraper()
+    print(f"Getting NFL data for {year}")
+    events = ns.events_list(year)
+    for event in events:
+        game = extract_game_attributes(ns, event)
+        #weather = nflscraper.get_weather_by_coordinates(game["lat"], game["lon"], game["date"], game["time"])
+        
+        # extract game summary
+
+
+def extract_game_attributes(ns: nflscraper, espn_event: dict) -> dict:
+    game = {
+        "id": int(espn_event["id"]),
+        "home_score": int(espn_event["competitions"][0]["competitors"][0]["score"]),
+        "away_score": int(espn_event["competitions"][0]["competitors"][1]["score"]),
+        "home_team_id": int(espn_event["competitions"][0]["competitors"][0]["id"]),
+        "away_team_id": int(espn_event["competitions"][0]["competitors"][1]["id"]),
+        "home_team_name": espn_event["competitions"][0]["competitors"][0]["team"]["displayName"],
+        "away_team_name": espn_event["competitions"][0]["competitors"][1]["team"]["displayName"],
+        "stadium": espn_event["competitions"][0]["venue"]["fullName"],
+        "city": espn_event["competitions"][0]["venue"]["address"]["city"],
+        "state": espn_event["competitions"][0]["venue"]["address"].get("state", None),
+        "date": datetime.fromisoformat(espn_event["date"]).strftime("%Y-%m-%d"),
+        "time": datetime.fromisoformat(espn_event["date"]).strftime("%H:%M"),
+        "season": int(espn_event["season"]["year"]),
+        "week": int(espn_event["week"]["number"])
+    }
+    # increase the week number for post season games since espn restarts week count in the post season
+    if(int(espn_event["season"]["type"]) == 3): 
+        game["week"] += 18 if game["season"] >= 2021 else 17
+    # compute the latitude and longitude of the game to obtain weather data
+    locationName = f"{game['stadium']} {game['city']} {'' if game['state'] is None else game['state']}"
+    game["lat"], game["lon"] = ns.getLocationCoords(locationName)
+    return game
 
 
 if __name__ == "__main__":
