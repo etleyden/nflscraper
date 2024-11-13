@@ -11,7 +11,9 @@ CREATE TABLE player (
 
 CREATE TABLE team(
     id int PRIMARY KEY,
-    name varchar(30)
+    name varchar(30),
+    conference char(3),
+    division char(1)
 )
 
 CREATE TABLE position(
@@ -45,6 +47,7 @@ CREATE TABLE precipitation(
 CREATE TABLE game(
     id int PRIMARY KEY,
     gameday date,
+    stadium varchar(20),
     city varchar(20),
     state char(2),
     # home team stats
@@ -57,7 +60,7 @@ CREATE TABLE game(
     #away team stats
     away_team int,
     away_score int,
-    away_win_Pct float,
+    away_win_pct float,
     away_elo float,
     away_time_possession int,
     away_third_dwn_pct float,
@@ -78,12 +81,11 @@ CREATE TABLE gameplayer(
     FOREIGN KEY (player) REFERENCES player(id)
     # offense stats
     pass_attempts int,
-    pass_completion int,
+    pass_completions int,
     receptions int,
     fumbles int,
     intercepts_thrown int,
     receive_yds int,
-    pass_yds int,
     rush_yds int,
     pass_yds int,
     pass_tds int,

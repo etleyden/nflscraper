@@ -1,0 +1,441 @@
+2024-11-12 17:22:41.743 EST [11907] LOG:  starting PostgreSQL 14.13 (Homebrew) on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.4), 64-bit
+2024-11-12 17:22:41.744 EST [11907] LOG:  listening on IPv6 address "::1", port 5432
+2024-11-12 17:22:41.744 EST [11907] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2024-11-12 17:22:41.746 EST [11907] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2024-11-12 17:22:41.761 EST [11908] LOG:  database system was interrupted; last known up at 2024-11-07 08:40:53 EST
+2024-11-12 17:22:41.996 EST [11908] LOG:  database system was not properly shut down; automatic recovery in progress
+2024-11-12 17:22:42.003 EST [11908] LOG:  redo starts at 0/172C5E0
+2024-11-12 17:22:42.003 EST [11908] LOG:  invalid record length at 0/172C6C8: wanted 24, got 0
+2024-11-12 17:22:42.003 EST [11908] LOG:  redo done at 0/172C690 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2024-11-12 17:22:42.024 EST [11907] LOG:  database system is ready to accept connections
+2024-11-12 17:26:33.785 EST [13481] FATAL:  database "astral" does not exist
+2024-11-12 17:30:01.323 EST [14862] ERROR:  syntax error at or near "user" at character 61
+2024-11-12 17:30:01.323 EST [14862] STATEMENT:  SET FOREIGN_KEY_CHECKS=0;
+	DROP TABLE IF EXISTS vendor, txn, user, acct
+	SET FOREIGN_KEY_CHECKS=1;
+	
+	CREATE TABLE vendor (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30) NOT NULL,
+	    website varchar(30) NOT NULL
+	)
+	
+	CREATE TABLE user (
+	    id int PRIMARY KEY AUTO_INCREMENT
+	    first_name varchar(30),
+	    last_name varchar(30),
+	    email varchar(254) NOT NULL
+	)
+	
+	CREATE TABLE acct (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30) NOT NULL,
+	    user_id int,
+	    FOREIGN KEY user_id REFERENCES user(id)
+	)
+	
+	CREATE TABLE category(
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30)
+	)
+	
+	CREATE TABLE txn (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    desc varchar(120) NOT NULL,
+	    vendor_id int,
+	    amount numeric(20, 2) NOT NULL,
+	    category int,
+	    pending boolean,
+	    txn_date date NOT NULL,
+	    acct_id int NOT NULL,
+	    FOREIGN KEY (vendor_id) REFERENCES vendor(id),
+	    FOREIGN KEY (category) REFERENCES category(id),
+	    FOREIGN KEY (acct) REFERENCES acct(id)
+	)
+2024-11-12 17:31:03.888 EST [15276] ERROR:  syntax error at or near "user" at character 61
+2024-11-12 17:31:03.888 EST [15276] STATEMENT:  SET FOREIGN_KEY_CHECKS=0;
+	DROP TABLE IF EXISTS vendor, txn, user, acct
+	SET FOREIGN_KEY_CHECKS=1;
+	
+	CREATE TABLE vendor (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30) NOT NULL,
+	    website varchar(30) NOT NULL
+	)
+	
+	CREATE TABLE user (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    first_name varchar(30),
+	    last_name varchar(30),
+	    email varchar(254) NOT NULL
+	)
+	
+	CREATE TABLE acct (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30) NOT NULL,
+	    user_id int,
+	    FOREIGN KEY user_id REFERENCES user(id)
+	)
+	
+	CREATE TABLE category(
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30)
+	)
+	
+	CREATE TABLE txn (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    desc varchar(120) NOT NULL,
+	    vendor_id int,
+	    amount numeric(20, 2) NOT NULL,
+	    category int,
+	    pending boolean,
+	    txn_date date NOT NULL,
+	    acct_id int NOT NULL,
+	    FOREIGN KEY (vendor_id) REFERENCES vendor(id),
+	    FOREIGN KEY (category) REFERENCES category(id),
+	    FOREIGN KEY (acct) REFERENCES acct(id)
+	)
+2024-11-12 17:32:01.814 EST [15644] ERROR:  syntax error at or near "user" at character 61
+2024-11-12 17:32:01.814 EST [15644] STATEMENT:  SET FOREIGN_KEY_CHECKS=0;
+	DROP TABLE IF EXISTS vendor, txn, user, acct
+	SET FOREIGN_KEY_CHECKS=1;
+	
+	CREATE TABLE vendor (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30) NOT NULL,
+	    website varchar(30) NOT NULL
+	);
+	
+	CREATE TABLE user (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    first_name varchar(30),
+	    last_name varchar(30),
+	    email varchar(254) NOT NULL
+	)
+	
+	CREATE TABLE acct (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30) NOT NULL,
+	    user_id int,
+	    FOREIGN KEY user_id REFERENCES user(id)
+	);
+	
+	CREATE TABLE category(
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30)
+	);
+	
+	CREATE TABLE txn (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    desc varchar(120) NOT NULL,
+	    vendor_id int,
+	    amount numeric(20, 2) NOT NULL,
+	    category int,
+	    pending boolean,
+	    txn_date date NOT NULL,
+	    acct_id int NOT NULL,
+	    FOREIGN KEY (vendor_id) REFERENCES vendor(id),
+	    FOREIGN KEY (category) REFERENCES category(id),
+	    FOREIGN KEY (acct) REFERENCES acct(id)
+	);
+2024-11-12 17:34:47.962 EST [16751] ERROR:  syntax error at or near "user" at character 61
+2024-11-12 17:34:47.962 EST [16751] STATEMENT:  SET FOREIGN_KEY_CHECKS=0;
+	DROP TABLE IF EXISTS vendor, txn, user, acct
+	SET FOREIGN_KEY_CHECKS=1;
+	
+	CREATE TABLE vendor (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30) NOT NULL,
+	    website varchar(30) NOT NULL
+	);
+	
+	CREATE TABLE user (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    first_name varchar(30),
+	    last_name varchar(30),
+	    email varchar(254) NOT NULL
+	);
+	
+	CREATE TABLE acct (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30) NOT NULL,
+	    user_id int,
+	    FOREIGN KEY user_id REFERENCES user(id)
+	);
+	
+	CREATE TABLE category(
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30)
+	);
+	
+	CREATE TABLE txn (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    desc varchar(120) NOT NULL,
+	    vendor_id int,
+	    amount numeric(20, 2) NOT NULL,
+	    category int,
+	    pending boolean,
+	    txn_date date NOT NULL,
+	    acct_id int NOT NULL,
+	    FOREIGN KEY (vendor_id) REFERENCES vendor(id),
+	    FOREIGN KEY (category) REFERENCES category(id),
+	    FOREIGN KEY (acct) REFERENCES acct(id)
+	);
+2024-11-12 17:39:49.405 EST [18627] ERROR:  syntax error at or near "AUTO_INCREMENT" at character 46
+2024-11-12 17:39:49.405 EST [18627] STATEMENT:  CREATE TABLE vendor (
+	    id int PRIMARY KEY AUTO_INCREMENT,
+	    name varchar(30) NOT NULL,
+	    website varchar(30) NOT NULL
+	);
+2024-11-12 17:41:54.443 EST [19590] ERROR:  syntax error at or near "user" at character 61
+2024-11-12 17:41:54.443 EST [19590] STATEMENT:  SET FOREIGN_KEY_CHECKS=0;
+	DROP TABLE IF EXISTS vendor, txn, user, acct, category
+	SET FOREIGN_KEY_CHECKS=1;
+	
+	CREATE TABLE vendor (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    website varchar(30) NOT NULL
+	);
+	
+	CREATE TABLE user (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    first_name varchar(30),
+	    last_name varchar(30),
+	    email varchar(254) NOT NULL
+	);
+	
+	CREATE TABLE acct (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    user_id int,
+	    FOREIGN KEY user_id REFERENCES user(id)
+	);
+	
+	CREATE TABLE category(
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30)
+	);
+	
+	CREATE TABLE txn (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    desc varchar(120) NOT NULL,
+	    vendor_id int,
+	    amount numeric(20, 2) NOT NULL,
+	    category int,
+	    pending boolean,
+	    txn_date date NOT NULL,
+	    acct_id int NOT NULL,
+	    FOREIGN KEY (vendor_id) REFERENCES vendor(id),
+	    FOREIGN KEY (category) REFERENCES category(id),
+	    FOREIGN KEY (acct) REFERENCES acct(id)
+	);
+2024-11-12 17:43:56.206 EST [20443] ERROR:  syntax error at or near "user" at character 61
+2024-11-12 17:43:56.206 EST [20443] STATEMENT:  SET FOREIGN_KEY_CHECKS=0;
+	DROP TABLE IF EXISTS vendor, txn, user, acct, category
+	SET FOREIGN_KEY_CHECKS=1;
+	
+	CREATE TABLE vendor (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    website varchar(30) NOT NULL
+	);
+	
+	CREATE TABLE user (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    first_name varchar(30),
+	    last_name varchar(30),
+	    email varchar(254) NOT NULL
+	);
+	
+	CREATE TABLE acct (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    user_id int,
+	    FOREIGN KEY user_id REFERENCES user(id)
+	);
+	
+	CREATE TABLE category(
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30)
+	);
+	
+	CREATE TABLE txn (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    desc varchar(120) NOT NULL,
+	    vendor_id int,
+	    amount numeric(20, 2) NOT NULL,
+	    category int,
+	    pending boolean,
+	    txn_date date NOT NULL,
+	    acct_id int NOT NULL,
+	    FOREIGN KEY (vendor_id) REFERENCES vendor(id),
+	    FOREIGN KEY (category) REFERENCES category(id),
+	    FOREIGN KEY (acct) REFERENCES acct(id)
+	);
+2024-11-12 17:44:41.450 EST [20758] ERROR:  syntax error at or near "user" at character 61
+2024-11-12 17:44:41.450 EST [20758] STATEMENT:  SET FOREIGN_KEY_CHECKS=0;
+	DROP TABLE IF EXISTS vendor, txn, user, acct, category
+	SET FOREIGN_KEY_CHECKS=1;
+	
+	CREATE TABLE vendor (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    website varchar(30) NOT NULL
+	);
+	
+	CREATE TABLE app_user (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    first_name varchar(30),
+	    last_name varchar(30),
+	    email varchar(254) NOT NULL
+	);
+	
+	CREATE TABLE acct (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    app_user_id int,
+	    FOREIGN KEY app_user_id REFERENCES app_user(id)
+	);
+	
+	CREATE TABLE category(
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30)
+	);
+	
+	CREATE TABLE txn (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    desc varchar(120) NOT NULL,
+	    vendor_id int,
+	    amount numeric(20, 2) NOT NULL,
+	    category int,
+	    pending boolean,
+	    txn_date date NOT NULL,
+	    acct_id int NOT NULL,
+	    FOREIGN KEY (vendor_id) REFERENCES vendor(id),
+	    FOREIGN KEY (category) REFERENCES category(id),
+	    FOREIGN KEY (acct) REFERENCES acct(id)
+	);
+2024-11-12 17:46:17.790 EST [21445] ERROR:  syntax error at or near "user" at character 35
+2024-11-12 17:46:17.790 EST [21445] STATEMENT:  DROP TABLE IF EXISTS vendor, txn, user, acct, category;
+	
+	CREATE TABLE vendor (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    website varchar(30) NOT NULL
+	);
+	
+	CREATE TABLE app_user (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    first_name varchar(30),
+	    last_name varchar(30),
+	    email varchar(254) NOT NULL
+	);
+	
+	CREATE TABLE acct (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    app_user_id int,
+	    FOREIGN KEY (app_user_id) REFERENCES app_user(id)
+	);
+	
+	CREATE TABLE category(
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30)
+	);
+	
+	CREATE TABLE txn (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    desc varchar(120) NOT NULL,
+	    vendor_id int,
+	    amount numeric(20, 2) NOT NULL,
+	    category int,
+	    pending boolean,
+	    txn_date date NOT NULL,
+	    acct_id int NOT NULL,
+	    FOREIGN KEY (vendor_id) REFERENCES vendor(id),
+	    FOREIGN KEY (category) REFERENCES category(id),
+	    FOREIGN KEY (acct) REFERENCES acct(id)
+	);
+2024-11-12 17:46:48.204 EST [21653] ERROR:  syntax error at or near "desc" at character 768
+2024-11-12 17:46:48.204 EST [21653] STATEMENT:  DROP TABLE IF EXISTS vendor, txn, app_user, acct, category;
+	
+	CREATE TABLE vendor (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    website varchar(30) NOT NULL
+	);
+	
+	CREATE TABLE app_user (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    first_name varchar(30),
+	    last_name varchar(30),
+	    email varchar(254) NOT NULL
+	);
+	
+	CREATE TABLE acct (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    app_user_id int,
+	    FOREIGN KEY (app_user_id) REFERENCES app_user(id)
+	);
+	
+	CREATE TABLE category(
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30)
+	);
+	
+	CREATE TABLE txn (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    desc varchar(120) NOT NULL,
+	    vendor_id int,
+	    amount numeric(20, 2) NOT NULL,
+	    category int,
+	    pending boolean,
+	    txn_date date NOT NULL,
+	    acct_id int NOT NULL,
+	    FOREIGN KEY (vendor_id) REFERENCES vendor(id),
+	    FOREIGN KEY (category) REFERENCES category(id),
+	    FOREIGN KEY (acct) REFERENCES acct(id)
+	);
+2024-11-12 17:47:09.196 EST [21786] ERROR:  column "acct" referenced in foreign key constraint does not exist
+2024-11-12 17:47:09.196 EST [21786] STATEMENT:  DROP TABLE IF EXISTS vendor, txn, app_user, acct, category;
+	
+	CREATE TABLE vendor (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    website varchar(30) NOT NULL
+	);
+	
+	CREATE TABLE app_user (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    first_name varchar(30),
+	    last_name varchar(30),
+	    email varchar(254) NOT NULL
+	);
+	
+	CREATE TABLE acct (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30) NOT NULL,
+	    app_user_id int,
+	    FOREIGN KEY (app_user_id) REFERENCES app_user(id)
+	);
+	
+	CREATE TABLE category(
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    name varchar(30)
+	);
+	
+	CREATE TABLE txn (
+	    id bigint generated by default as IDENTITY PRIMARY KEY,
+	    description varchar(120) NOT NULL,
+	    vendor_id int,
+	    amount numeric(20, 2) NOT NULL,
+	    category int,
+	    pending boolean,
+	    txn_date date NOT NULL,
+	    acct_id int NOT NULL,
+	    FOREIGN KEY (vendor_id) REFERENCES vendor(id),
+	    FOREIGN KEY (category) REFERENCES category(id),
+	    FOREIGN KEY (acct) REFERENCES acct(id)
+	);
