@@ -1,9 +1,8 @@
-import sys, json, requests
+import sys, json, requests, warnings, os
+import psycopg2
 from datetime import datetime
 from geopy.geocoders import Nominatim
-import warnings
 from dotenv import load_dotenv
-import os
 import pandas as pd
 
 
@@ -13,6 +12,12 @@ else:
     print("Usage: python build_db.py [YEAR]")
     sys.exit()
 
+def safe_float_conversion(value):
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return 0.0
+    
 class nflscraper():
     __loc = Nominatim(user_agent="GetLoc")
     __division = {
@@ -61,7 +66,6 @@ class nflscraper():
         # Check if the request was successful
         if response.status_code == 200:
             data = response.json()
-            print(data)
             for hourly in data['days'][0]['hours']:
                 hourly_time = datetime.strptime(f"{data['days'][0]['datetime']}T{hourly['datetime']}Z", "%Y-%m-%dT%H:%M:%SZ")
                 if hourly_time == datetime_obj:
@@ -88,9 +92,10 @@ class nflscraper():
         return location.latitude, location.longitude
     def events_list(self, year: int) -> dict:
         return requests.get(self.__event_api_string(year)).json()["events"]
-    def interpret_boxscore(self, event) -> dict:
+    def interpret_boxscore(self, event, game) -> dict:
         api_boxscore = requests.get(self.__boxscore_api_string(event)).json()["boxscore"]
         boxscore = {}
+        # TODO: CAPTURE PLAYER DATA
         for player_data in api_boxscore.get("players", []):
             team_id = player_data.get("team", {}).get("id")
             for stat_category in player_data.get("statistics", []):
@@ -102,21 +107,26 @@ class nflscraper():
                     if athlete_id not in boxscore: 
                         boxscore[athlete_id] = {"team_id": team_id}
                     boxscore[athlete_id].update(dict(zip(keys, stats)))
+        home_3rd_eff = api_boxscore["teams"][0]["statistics"][4]["displayValue"].split("-")
+        away_3rd_eff = api_boxscore["teams"][1]["statistics"][4]["displayValue"].split("-")
+        game["home_third_dwn_pct"] = safe_float_conversion(home_3rd_eff[0]) / safe_float_conversion(home_3rd_eff[1])
+        game["away_third_dwn_pct"] = safe_float_conversion(away_3rd_eff[0]) / safe_float_conversion(away_3rd_eff[1])
+        home_time_possession = api_boxscore["teams"][0]["statistics"][24]["displayValue"].split(":")
+        away_time_possession = api_boxscore["teams"][1]["statistics"][24]["displayValue"].split(":")
+        game["home_time_possession"] = safe_float_conversion(home_time_possession[0]) + safe_float_conversion(home_time_possession[1]) / 60.0
+        game["away_time_possession"] = safe_float_conversion(away_time_possession[0]) + safe_float_conversion(away_time_possession[1]) / 60.0
         return boxscore
-    def get_teams(self) -> list[dict]:
-        teams = []
-        for i in range(1, 35):
-            team = {}
-            data = requests.get(self.__team_api_string(i)).json()["team"]
-            team["id"] = int(data["id"])
-            team["name"] = data["name"]
-            team["display_name"] = data["displayName"]
-            team["conference"] = nflscraper.__division[int(data["groups"]["id"][0])]
-            team["division"] = nflscraper.__division[int(data["groups"]["id"][1])]
-            team["logo"] = data["logos"][0]["href"]
-            team["color"] = data["color"]
-            teams.append(team)
-        return teams
+    def get_team(self, id) -> list[dict]:
+        team = {}
+        data = requests.get(self.__team_api_string(id)).json()["team"]
+        team["id"] = int(data["id"])
+        team["name"] = data["name"]
+        team["display_name"] = data["displayName"]
+        team["conference"] = nflscraper.__division[int(data["groups"]["id"][0])][0]
+        team["division"] = nflscraper.__division[int(data["groups"]["id"][0])][1]
+        team["logo"] = data["logos"][0]["href"]
+        team["color"] = data["color"]
+        return team
     def get_player(self, player_id):
         pass
     def __athlete_api_string(self, season, player_id) -> str:
@@ -130,16 +140,21 @@ class nflscraper():
     def extract_game_attributes(self, espn_event: dict) -> dict:
         game = {
             "id": int(espn_event["id"]),
-            "home_score": int(espn_event["competitions"][0]["competitors"][0]["score"]),
-            "away_score": int(espn_event["competitions"][0]["competitors"][1]["score"]),
-            "home_team_id": int(espn_event["competitions"][0]["competitors"][0]["id"]),
-            "away_team_id": int(espn_event["competitions"][0]["competitors"][1]["id"]),
-            "home_team_name": espn_event["competitions"][0]["competitors"][0]["team"]["displayName"],
-            "away_team_name": espn_event["competitions"][0]["competitors"][1]["team"]["displayName"],
+            "gameday": datetime.fromisoformat(espn_event["date"]).strftime("%Y-%m-%d"),
             "stadium": espn_event["competitions"][0]["venue"]["fullName"],
             "city": espn_event["competitions"][0]["venue"]["address"]["city"],
             "state": espn_event["competitions"][0]["venue"]["address"].get("state", None),
-            "date": datetime.fromisoformat(espn_event["date"]).strftime("%Y-%m-%d"),
+            "home_team_id": int(espn_event["competitions"][0]["competitors"][0]["id"]),
+            "home_team_name": espn_event["competitions"][0]["competitors"][0]["team"]["name"],
+            "home_team_display_name": espn_event["competitions"][0]["competitors"][0]["team"]["displayName"],
+            "home_score": int(espn_event["competitions"][0]["competitors"][0]["score"]),
+            "away_team_id": int(espn_event["competitions"][0]["competitors"][1]["id"]),
+            "away_team_name": espn_event["competitions"][0]["competitors"][1]["team"]["name"],
+            "away_team_display_name": espn_event["competitions"][0]["competitors"][1]["team"]["displayName"],
+            "away_score": int(espn_event["competitions"][0]["competitors"][1]["score"]),
+            # missing elo, win pct
+            # 3rd down pct added from box score
+            # time possession added from box score
             "time": datetime.fromisoformat(espn_event["date"]).strftime("%H:%M"),
             "season": int(espn_event["season"]["year"]),
             "week": int(espn_event["week"]["number"])
@@ -151,61 +166,91 @@ class nflscraper():
         locationName = f"{game['stadium']} {game['city']} {'' if game['state'] is None else game['state']}"
         game["lat"], game["lon"] = self.getLocationCoords(locationName)
         return game
+    def rowify_player(self, game_id: int, player_id: int, player: dict) -> dict:
+        row = {
+            "player": player_id,
+            "game": game_id,
+        }
+        for stat in player:
+            # TODO: Fix sacks
+            match stat:
+                # written in order of definition in the ddl file
+                case "completions/passingAttempts": # written as int/int
+                    row["passCompletions"] = safe_float_conversion(player[stat].split("/")[0])
+                    row["passAttempts"] = safe_float_conversion(player[stat].split("/")[1])
+                case "fieldGoalsMade/fieldGoalAttempts":
+                    row["fieldGoalsMade"] = safe_float_conversion(player[stat].split("/")[0])
+                    row["fieldGoalAttempts"] = safe_float_conversion(player[stat].split("/")[1])
+                case "extraPointsMade/extraPointAttempts":
+                    row["extraPointsMade"] = safe_float_conversion(player[stat].split("/")[0])
+                    row["extraPointAttempts"] = safe_float_conversion(player[stat].split("/")[1])
+                case "interceptions":
+                    # check for neighboring keys to indicate if this is an offensive or defensive interception
+                    if "QBRating" in player: # offensive interception
+                        row["interceptsThrown"] = safe_float_conversion(player[stat])
+                    else: # defensive interception
+                        row[stat] = safe_float_conversion(player[stat])
+                case "sacks-sackYardsLost":
+                    row["sackYardsLost"] = safe_float_conversion(player[stat])
+                case "team_id": # this doesn't go in the row
+                    continue
+                case _: 
+                    row[stat] = safe_float_conversion(stat)
+        return row
+    def rowify_game(self, game, weather):
+        game = game | weather
+        game_fields = ["id", "gameday", "stadium", "city", "state",
+                       "home_team_id", "home_score", "home_win_pct",
+                       "home_elo", "home_time_possession", "home_third_dwn_pct",
+                       "away_team_id", "away_score", "away_win_pct",
+                       "away_elo", "away_time_possession", "away_third_dwn_pct",
+                       "temperature", "precipitation", "season", "week", "windspeed"]
+        return {key: game[key] for key in game if key in game_fields}
 
-
+def generateInsertStatement(table, obj):
+    keys = ', '.join(obj.keys())
+    values = ', '.join([f"'{str(value)}'" if isinstance(value, str) else str(value) for value in obj.values()])
+    return f"INSERT INTO {table} ({keys}) VALUES ({values});"
 def main():
+    # set up database
+    load_dotenv()
+
+    conn = psycopg2.connect(
+        database=os.getenv("NFL_DB_NAME"),
+        host=os.getenv("NFL_DB_HOST"),
+        user=os.getenv("NFL_DB_USER"),
+        password=os.getenv("NFL_DB_PASS"),
+        port=os.getenv("NFL_DB_PORT"))
+    cursor = conn.cursor()
+
+    # get all teams, a great way to test out the connection before we start also
+    cursor.execute("select id from team")
+    team_ids = cursor.fetchall()
     ns = nflscraper()
     print(f"Getting NFL data for {year}")
     events = ns.events_list(year)
-    game_columns = ["id", "gameday", "city", "state", "home_team", "home_score",
-        "home_win_pct", "home_elo", "home_time_possession", "home_third_dwn_pct", 
-        "away_team", "away_score", "away_win_pct", "away_elo", "away_time_possession", 
-        "away_third_down_pct", "temp", "precipitation", "season", "week"]
-    boxscore_identifying_cols = ["game_id", "player_id"]
-    boxscore_columns = ["pass_attempts", "pass_completions", "receptions", "fumbles", "intercepts_thrown", 
-            "receive_yds", "rush_yds", "pass_yds", "pass_tds", "rush_tds", "targets", "receive_tds", "rush_attempts", 
-            "qbr", "interceptions", "fumble_recoveries", "sacks", "tackles", "defensive_tds", "punts", "punt_yds", 
-            "punt_return_yds", "punt_returns", "kicks", "kick_return_yds", "kick_returns", "kick_return_tds", "field_goal_attempts", 
-            "field_goal_makes_20", "field_goal_makes_30", "field_goal_makes_40", "field_goal_makes_50", "xtra_pt_attempts",
-            "xtra_pt_completions"]
-    games = pd.DataFrame(game_columns)
-    boxscores = pd.DataFrame(boxscore_identifying_cols + boxscore_columns)
     for event in events:
-        #game = ns.extract_game_attributes(event)
-        #weather = ns.get_weather_by_coordinates(game["lat"], game["lon"], game["date"], game["time"])
-        #boxscore = ns.interpret_boxscore(game["id"])
-        # TODO: convert boxscore and game to correct format for db
-        # extract game summary
-        
-        
-        
-        
-
-def extract_game_attributes(ns: nflscraper, espn_event: dict) -> dict:
-    game = {
-        "id": int(espn_event["id"]),
-        "home_score": int(espn_event["competitions"][0]["competitors"][0]["score"]),
-        "away_score": int(espn_event["competitions"][0]["competitors"][1]["score"]),
-        "home_team_id": int(espn_event["competitions"][0]["competitors"][0]["id"]),
-        "away_team_id": int(espn_event["competitions"][0]["competitors"][1]["id"]),
-        "home_team_name": espn_event["competitions"][0]["competitors"][0]["team"]["displayName"],
-        "away_team_name": espn_event["competitions"][0]["competitors"][1]["team"]["displayName"],
-        "stadium": espn_event["competitions"][0]["venue"]["fullName"],
-        "city": espn_event["competitions"][0]["venue"]["address"]["city"],
-        "state": espn_event["competitions"][0]["venue"]["address"].get("state", None),
-        "date": datetime.fromisoformat(espn_event["date"]).strftime("%Y-%m-%d"),
-        "time": datetime.fromisoformat(espn_event["date"]).strftime("%H:%M"),
-        "season": int(espn_event["season"]["year"]),
-        "week": int(espn_event["week"]["number"])
-    }
-    # increase the week number for post season games since espn restarts week count in the post season
-    if(int(espn_event["season"]["type"]) == 3): 
-        game["week"] += 18 if game["season"] >= 2021 else 17
-    # compute the latitude and longitude of the game to obtain weather data
-    locationName = f"{game['stadium']} {game['city']} {'' if game['state'] is None else game['state']}"
-    game["lat"], game["lon"] = ns.getLocationCoords(locationName)
-    return game
-
+        # gather the data from the api
+        game = ns.extract_game_attributes(event)
+        weather = ns.get_weather_by_coordinates(game["lat"], game["lon"], game["gameday"], game["time"])
+        boxscore = ns.interpret_boxscore(game["id"], game)
+        # check if the team is in the DB, if not, we'll need to add it. 
+        if(game["home_team_id"] not in team_ids):
+            cursor.execute(generateInsertStatement("team", ns.get_team(game["home_team_id"])))
+        if(game["away_team_id"] not in team_ids):
+            cursor.execute(generateInsertStatement("team", ns.get_team(game["away_team_id"])))
+        # insert the data into the db
+        game_stats = ns.rowify_game(game, weather)
+        cursor.execute(generateInsertStatement("game", game_stats))
+        player_game_stats = []
+        for player in boxscore:
+            player_game_stats.append(ns.rowify_player(game["id"], player, boxscore[player]))
+            cursor.execute(generateInsertStatement("gameplayer", player_game_stats[-1:][0]))
+        cursor.commit()
+        if game["home_team_id"] not in team_ids: team_ids.append(game["home_team_id"])
+        if game["away_team_id"] not in team_ids: team_ids.append(game["away_team_id"])
+        print(f"Gathered {len(player_game_stats)} boxscores for game id {game['id']}")
+    conn.close()
 
 if __name__ == "__main__":
     main()
