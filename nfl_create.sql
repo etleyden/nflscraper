@@ -48,8 +48,8 @@ CREATE TABLE precipitation(
 CREATE TABLE game(
     id int PRIMARY KEY,
     gameday date,
-    stadium varchar(30),
-    city varchar(30),
+    stadium varchar(50),
+    city varchar(50),
     state char(2),
     -- home team stats
     home_team_id int,
@@ -118,7 +118,7 @@ CREATE TABLE gameplayer(
     defensiveTouchdowns real,
     -- interceptions (defense)
     interceptions real,
-    interceptionYds real,
+    interceptionYards real,
     interceptionTouchdowns real,
     -- special
     -- kickReturns
@@ -136,6 +136,7 @@ CREATE TABLE gameplayer(
     -- kicking
     fieldGoalsMade real,
     fieldGoalAttempts real,
+    fieldGoalPct real,
     longFieldGoalMade real,
     extraPointsMade real,
     extraPointAttempts real,

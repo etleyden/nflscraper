@@ -78,7 +78,10 @@ class nflscraper():
             print("No data available for the specified time.")
             return None
         else:
-            print(f"Error: Unable to fetch data. Status code {response.status_code}")
+            if response.status == 429:
+                print("Out of API calls for weather. Try again later.")
+            else:
+                print(f"Error: Unable to fetch data. Status code {response.status_code}")
             return None
     def getLocationCoords(self, stadium_name: str):
         location = nflscraper.__loc.geocode(stadium_name)
@@ -93,7 +96,12 @@ class nflscraper():
     def events_list(self, year: int) -> dict:
         return requests.get(self.__event_api_string(year)).json()["events"]
     def interpret_boxscore(self, event, game) -> dict:
+        """
+        Returns a list of players, with their corresponding statistics based on the boxscore object for that game, as well as a dictionary containing athlete_id: name pairs to
+        streamline the population of the players table
+        """
         api_boxscore = requests.get(self.__boxscore_api_string(event)).json()["boxscore"]
+        players = {}
         boxscore = {}
         # TODO: CAPTURE PLAYER DATA
         for player_data in api_boxscore.get("players", []):
@@ -102,11 +110,14 @@ class nflscraper():
                 cat_name = stat_category.get("name")
                 keys = stat_category.get("keys", [])
                 for athlete in stat_category.get("athletes", []):
-                    athlete_id = athlete.get("athlete", {}).get("id")
+                    athlete_id = int(athlete.get("athlete", {}).get("id"))
+                    athlete_name = athlete.get("athlete", {}).get("displayName", "")
                     stats = athlete.get("stats", [])
                     if athlete_id not in boxscore: 
                         boxscore[athlete_id] = {"team_id": team_id}
                     boxscore[athlete_id].update(dict(zip(keys, stats)))
+                    if athlete_id not in players:
+                        players[int(athlete_id)] = athlete_name
         home_3rd_eff = api_boxscore["teams"][0]["statistics"][4]["displayValue"].split("-")
         away_3rd_eff = api_boxscore["teams"][1]["statistics"][4]["displayValue"].split("-")
         game["home_third_dwn_pct"] = safe_float_conversion(home_3rd_eff[0]) / safe_float_conversion(home_3rd_eff[1])
@@ -115,7 +126,7 @@ class nflscraper():
         away_time_possession = api_boxscore["teams"][1]["statistics"][24]["displayValue"].split(":")
         game["home_time_possession"] = safe_float_conversion(home_time_possession[0]) + safe_float_conversion(home_time_possession[1]) / 60.0
         game["away_time_possession"] = safe_float_conversion(away_time_possession[0]) + safe_float_conversion(away_time_possession[1]) / 60.0
-        return boxscore
+        return boxscore, players
     def get_team(self, id) -> list[dict]:
         team = {}
         data = requests.get(self.__team_api_string(id)).json()["team"]
@@ -168,10 +179,11 @@ class nflscraper():
         return game
     def rowify_player(self, game_id: int, player_id: int, player: dict) -> dict:
         row = {
-            "player": player_id,
-            "game": game_id,
+            "player": int(player_id),
+            "game": int(game_id),
         }
         for stat in player:
+            if stat.startswith("long"): continue
             # TODO: Fix sacks
             match stat:
                 # written in order of definition in the ddl file
@@ -198,7 +210,8 @@ class nflscraper():
                     row[stat] = safe_float_conversion(stat)
         return row
     def rowify_game(self, game, weather):
-        game = game | weather
+        if weather is not None:
+            game = game | weather
         game_fields = ["id", "gameday", "stadium", "city", "state",
                        "home_team_id", "home_score", "home_win_pct",
                        "home_elo", "home_time_possession", "home_third_dwn_pct",
@@ -209,8 +222,8 @@ class nflscraper():
 
 def generateInsertStatement(table, obj):
     keys = ', '.join(obj.keys())
-    values = ', '.join([f"'{str(value)}'" if isinstance(value, str) else str(value) for value in obj.values()])
-    return f"INSERT INTO {table} ({keys}) VALUES ({values});"
+    values = ', '.join([f"\'{str(value).replace('\'', '\'\'')}\'" if isinstance(value, str) else str(value) for value in obj.values()])
+    return f"""INSERT INTO {table} ({keys}) VALUES ({values});"""
 def main():
     # set up database
     load_dotenv()
@@ -223,9 +236,13 @@ def main():
         port=os.getenv("NFL_DB_PORT"))
     cursor = conn.cursor()
 
-    # get all teams, a great way to test out the connection before we start also
+    # get all entities already existing 
     cursor.execute("select id from team")
-    team_ids = cursor.fetchall()
+    team_ids = [team[0] for team in cursor.fetchall()]
+    cursor.execute("select id from player")
+    player_ids = [player[0] for player in cursor.fetchall()]
+    cursor.execute("select id from game")
+    game_ids = [game[0] for game in cursor.fetchall()]
     ns = nflscraper()
     print(f"Getting NFL data for {year}")
     events = ns.events_list(year)
@@ -233,20 +250,47 @@ def main():
         # gather the data from the api
         game = ns.extract_game_attributes(event)
         weather = ns.get_weather_by_coordinates(game["lat"], game["lon"], game["gameday"], game["time"])
-        boxscore = ns.interpret_boxscore(game["id"], game)
+        boxscore, players = ns.interpret_boxscore(game["id"], game)
+        
+        # Add any new players to the players table
+        new_athletes = 0
+        for athlete in players.keys():
+            if athlete not in player_ids:
+                new_athletes += 1
+                cursor.execute(generateInsertStatement("player", {"id": athlete, "name": players[athlete]}))
+                player_ids.append(athlete)
+        if new_athletes > 0: conn.commit()
+
         # check if the team is in the DB, if not, we'll need to add it. 
         if(game["home_team_id"] not in team_ids):
             cursor.execute(generateInsertStatement("team", ns.get_team(game["home_team_id"])))
+            conn.commit()
+            team_ids.append(game["home_team_id"])
         if(game["away_team_id"] not in team_ids):
             cursor.execute(generateInsertStatement("team", ns.get_team(game["away_team_id"])))
-        # insert the data into the db
+            conn.commit()
+            team_ids.append(game["away_team_id"])
+
+        # insert the game into the db
         game_stats = ns.rowify_game(game, weather)
-        cursor.execute(generateInsertStatement("game", game_stats))
+        if(game["id"] not in game_ids):
+            cursor.execute(generateInsertStatement("game", game_stats))
+            conn.commit()
+            game_ids.append(game["id"])
+        
+        # insert the boxscore for all players who played in that game
         player_game_stats = []
+        cursor.execute("select game, player from gameplayer")
+        gameplayer_ids = cursor.fetchall()
         for player in boxscore:
-            player_game_stats.append(ns.rowify_player(game["id"], player, boxscore[player]))
-            cursor.execute(generateInsertStatement("gameplayer", player_game_stats[-1:][0]))
-        cursor.commit()
+            # all players should be added on line 251
+
+            # convert the boxscore for this player at this game into a writeable row, and write it
+            player_game = ns.rowify_player(game["id"], player, boxscore[player])
+            if (player_game["game"], player_game["player"]) not in gameplayer_ids:
+                cursor.execute(generateInsertStatement("gameplayer", player_game))
+                player_game_stats.append(player_game)
+        conn.commit()
         if game["home_team_id"] not in team_ids: team_ids.append(game["home_team_id"])
         if game["away_team_id"] not in team_ids: team_ids.append(game["away_team_id"])
         print(f"Gathered {len(player_game_stats)} boxscores for game id {game['id']}")
