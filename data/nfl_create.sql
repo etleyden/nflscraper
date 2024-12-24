@@ -56,18 +56,18 @@ CREATE TABLE game(
     home_score int,
     home_win_pct real,
     home_elo real,
-    home_time_possession int,
+    home_time_possession real,
     home_third_dwn_pct real,
     -- away team stats
     away_team_id int,
     away_score int,
     away_win_pct real,
     away_elo real,
-    away_time_possession int,
+    away_time_possession real,
     away_third_dwn_pct real,
     -- weather + and season info
     temperature real,
-    precipitation real, -- amount of liquid precip or liquid equiv
+    precipitation varchar(20), -- amount of liquid precip or liquid equiv
     windspeed real,
     season int,
     week int,

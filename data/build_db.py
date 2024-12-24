@@ -1,16 +1,18 @@
-import sys, json, requests, warnings, os
+"""
+============================
+===      build_db.py     ===
+===     Ethan Leyden     ===
+============================
+usage: python build_db.py [YEAR] [optional ignore_date]
+ignore_date: YYYY-MM-DD
+"""
+import sys, json, requests, warnings, os, re
 import psycopg2
 from datetime import datetime
 from geopy.geocoders import Nominatim
 from dotenv import load_dotenv
+from bs4 import BeautifulSoup as bs
 import pandas as pd
-
-
-if len(sys.argv) > 1:
-    year = int(sys.argv[1])
-else:
-    print("Usage: python build_db.py [YEAR]")
-    sys.exit()
 
 def safe_float_conversion(value):
     try:
@@ -19,8 +21,8 @@ def safe_float_conversion(value):
         return 0.0
     
 class nflscraper():
-    __loc = Nominatim(user_agent="GetLoc")
-    __division = {
+    __loc = Nominatim(user_agent="GetLoc") # Library for getting coordinates from a place name
+    __division = { # dictionary to look up divisions and conferences based on ESPN team "parent"
         12: ["AFC", "N"],
         13: ["AFC", "S"],
         4: ["AFC", "E"],
@@ -30,11 +32,79 @@ class nflscraper():
         1: ["NFC", "E"],
         3: ["NFC", "W"],
     }
+    __descriptors = [ # dictionary to assign weather descriptors to a predefined ranking.
+        # these descriptors are based on nflweather.com, the source for our weather data
+        # they do not match, but the listed descriptor will be reduced to one of these based on matching
+        "sun", "clear", "cloud", "overcast", "humid", "fog", "drizzle", "rain", "thunderstorms", "snow"
+    ]
     # Load environment variables from .env file
     load_dotenv()
     warnings.filterwarnings("ignore", category=FutureWarning)
     def __init__(self):
         return
+    def get_weather_by_game(self, home, away, season, week):
+        # handle pre/postseason games. an unusual week number will indicate what "special week" it is
+        if home == "Commanders": home = "Washington"
+        elif away == "Commanders": away = "Washington"
+        if week > 18 and season < 2023:
+            match(week):
+                case 19: week = "wildcard-weekend"
+                case 20: week = "divisional-playoffs"
+                case 21: week = "%20conf-championships"
+                case 23: week = "superbowl"
+        elif week > 18 and season >= 2023:
+            match(week):
+                case 19: week = "wild-card"
+                case 20: week = "conference-championship"
+        elif week < 0 and season >= 2023:
+            match(week):
+                case -1: week = "preseason-week-3"
+                case -2: week = "preseason-week-2"
+                case -3: week = "preseason-week-1"
+                case -4: week = "hall-of-fame-weekend"
+        elif week < 0:
+            match(week):
+                case -1: week = "pre-season-week-3"
+                case -2: week = "pre-season-week-2"
+                case -3: week = "pre-season-week-1"
+                case -4: week = "pre-season-week-1"
+        else: week = f"week-{week}"
+        # clean home/away strings so they match team names
+        home, away = home.split()[-1], away.split()[-1]
+        url = f"https://www.nflweather.com/games/{season}/{week}/{away}-at-{home}"
+        response = requests.get(url)
+        if response.status_code >= 400: # if there was an issue getting the weather data, we'll terminate.
+            print(f"HTTP Error: {response.status_code}")
+            print(away, home, season, week, "|", url)
+            print(response.content)
+            sys.exit(1)
+
+        # turn the HTML blob into single-space separated textual content
+        response = re.sub(r"\s+", " ", bs(str(response.content), 'html.parser').get_text().replace("\\n", ""))
+        # temps are the first number after "Kickoff", "Q2", "Q3", "Q4"
+        # Quarter [Weather] [Temp] 
+        weather = re.findall(r"(Kickoff|Q2|Q3|Q4)\s([a-zA-Z|\s]*)([0-9]{1,3})", response)
+        if len(weather) == 0: # didn't grab any weather data
+            print("Unable to parse nflweather page for this game:")
+            print(away, home, season, week, "|", url)
+            print(response)
+            return {}
+            
+        weather = [(i[0], i[1].strip().lower(), int(i[2])) for i in weather] # clean the strings
+        temp = sum([i[2] for i in weather]) / len(weather) # average temperature
+        # "worst" weather descriptor
+        descriptor = None
+        for d in self.__descriptors:
+            for w in weather:
+                if d in w[1]: descriptor = d
+        if descriptor is None:
+            for d in self.__descriptors:
+                for w in weather:
+                    print(f"{d} | {w} | {d in w}")
+            print(f"Could not match descriptor for {[w[1] for w in weather]}")
+        # TODO: grab windspeed
+        return {"temperature": temp, "precipitation": descriptor}
+    # ==== DEPRECATED ????? ====
     def get_weather_by_coordinates(self, lat, lon, date, time):
         """
         Fetches weather data for a specific location, date, and time using the Visual Crossing API.
@@ -103,7 +173,7 @@ class nflscraper():
         api_boxscore = requests.get(self.__boxscore_api_string(event)).json()["boxscore"]
         players = {}
         boxscore = {}
-        # TODO: CAPTURE PLAYER DATA
+        # TODO: CAPTURE PLAYER DATA like name, team history, etc.
         for player_data in api_boxscore.get("players", []):
             team_id = player_data.get("team", {}).get("id")
             for stat_category in player_data.get("statistics", []):
@@ -156,11 +226,11 @@ class nflscraper():
             "city": espn_event["competitions"][0]["venue"]["address"]["city"],
             "state": espn_event["competitions"][0]["venue"]["address"].get("state", None),
             "home_team_id": int(espn_event["competitions"][0]["competitors"][0]["id"]),
-            "home_team_name": espn_event["competitions"][0]["competitors"][0]["team"]["name"],
+            "home_team_name": espn_event["competitions"][0]["competitors"][0]["team"]["name" if int(espn_event["season"]["year"]) >= 2023 else "shortDisplayName"],
             "home_team_display_name": espn_event["competitions"][0]["competitors"][0]["team"]["displayName"],
             "home_score": int(espn_event["competitions"][0]["competitors"][0]["score"]),
             "away_team_id": int(espn_event["competitions"][0]["competitors"][1]["id"]),
-            "away_team_name": espn_event["competitions"][0]["competitors"][1]["team"]["name"],
+            "away_team_name": espn_event["competitions"][0]["competitors"][1]["team"]["name" if int(espn_event["season"]["year"]) >= 2023 else "shortDisplayName"],
             "away_team_display_name": espn_event["competitions"][0]["competitors"][1]["team"]["displayName"],
             "away_score": int(espn_event["competitions"][0]["competitors"][1]["score"]),
             # missing elo, win pct
@@ -173,6 +243,9 @@ class nflscraper():
         # increase the week number for post season games since espn restarts week count in the post season
         if(int(espn_event["season"]["type"]) == 3): 
             game["week"] += 18 if game["season"] >= 2021 else 17
+        # decrease the week number of pre-season games (negative number)
+        elif(int(espn_event["season"]["type"]) == 1):
+            game["week"] -= 5 # on the nflweather, hall-of-game-weekend is grouped with preseason week 1
         # compute the latitude and longitude of the game to obtain weather data
         locationName = f"{game['stadium']} {game['city']} {'' if game['state'] is None else game['state']}"
         game["lat"], game["lon"] = self.getLocationCoords(locationName)
@@ -184,7 +257,7 @@ class nflscraper():
         }
         for stat in player:
             if stat.startswith("long"): continue
-            # TODO: Fix sacks
+            # TODO: Fix sacks < new note: What did I mean by this??
             match stat:
                 # written in order of definition in the ddl file
                 case "completions/passingAttempts": # written as int/int
@@ -218,13 +291,23 @@ class nflscraper():
                        "away_team_id", "away_score", "away_win_pct",
                        "away_elo", "away_time_possession", "away_third_dwn_pct",
                        "temperature", "precipitation", "season", "week", "windspeed"]
-        return {key: game[key] for key in game if key in game_fields}
+        return {key: game[key] for key in game if (key in game_fields) and (game[key] is not None)}
 
 def generateInsertStatement(table, obj):
     keys = ', '.join(obj.keys())
     values = ', '.join([f"\'{str(value).replace('\'', '\'\'')}\'" if isinstance(value, str) else str(value) for value in obj.values()])
     return f"""INSERT INTO {table} ({keys}) VALUES ({values});"""
+
 def main():
+    missing_weather = []
+    num_games = 0
+    if len(sys.argv) > 1:
+        year = int(sys.argv[1])
+        # ignore all events with an ID less than the given optional argument
+        ignore_prior_to = datetime.strptime(sys.argv[2], "%Y-%m-%d").date() if len(sys.argv) > 2 else None
+    else:
+        print("Usage: python build_db.py [YEAR] [optional -- eventID]\nAn eventID argument will tell the scraper to ignore all events with an ID less than the one given")
+        sys.exit()
     # set up database
     load_dotenv()
 
@@ -246,10 +329,33 @@ def main():
     ns = nflscraper()
     print(f"Getting NFL data for {year}")
     events = ns.events_list(year)
+    haveSkipped = False
     for event in events:
+        # see if event is before specified date
+        if ignore_prior_to is not None and datetime.strptime(event["date"], "%Y-%m-%dT%H:%MZ").date() <= ignore_prior_to:
+            if not haveSkipped: # pretty print the list of skipped games
+                print("Skipping", end=" ")
+                haveSkipped = True
+            print(event["id"], end=", ")
+            continue
+        elif haveSkipped: 
+            haveSkipped = False
+            print()
+
+        # check if the game is the pro bowl -- no impact on super bowl
+        if event["shortName"] == "AFC VS NFC" or event["shortName"] == "NFC VS AFC": continue
+
         # gather the data from the api
-        game = ns.extract_game_attributes(event)
-        weather = ns.get_weather_by_coordinates(game["lat"], game["lon"], game["gameday"], game["time"])
+        try:
+            game = ns.extract_game_attributes(event)
+        except KeyError as err:
+            print(err)
+            print(event)
+            sys.exit(1)
+
+        weather = ns.get_weather_by_game(game["home_team_name"], game["away_team_name"], game["season"], game["week"])
+        if not weather:
+            missing_weather.append(game["id"])
         boxscore, players = ns.interpret_boxscore(game["id"], game)
         
         # Add any new players to the players table
@@ -274,7 +380,12 @@ def main():
         # insert the game into the db
         game_stats = ns.rowify_game(game, weather)
         if(game["id"] not in game_ids):
-            cursor.execute(generateInsertStatement("game", game_stats))
+            try:
+                cursor.execute(generateInsertStatement("game", game_stats))
+            except psycopg2.errors.UndefinedColumn as err:
+                print(generateInsertStatement("game", game_stats))
+                print(err)
+                sys.exit(1)
             conn.commit()
             game_ids.append(game["id"])
         
@@ -283,7 +394,7 @@ def main():
         cursor.execute("select game, player from gameplayer")
         gameplayer_ids = cursor.fetchall()
         for player in boxscore:
-            # all players should be added on line 251
+            # all players should be added on line 251 --> What did I mean by this?
 
             # convert the boxscore for this player at this game into a writeable row, and write it
             player_game = ns.rowify_player(game["id"], player, boxscore[player])
@@ -293,8 +404,10 @@ def main():
         conn.commit()
         if game["home_team_id"] not in team_ids: team_ids.append(game["home_team_id"])
         if game["away_team_id"] not in team_ids: team_ids.append(game["away_team_id"])
-        print(f"Gathered {len(player_game_stats)} boxscores for game id {game['id']}")
+        print(f"Game {game['id']} (Week {game['week']} | {game['away_team_name']} at {game['home_team_name']}) on [{game['gameday']}]: {len(player_game_stats)} boxscores.")
+        num_games += 1
     conn.close()
+    print(f"Collected data for {num_games}, missing weather data for: {missing_weather}")
 
 if __name__ == "__main__":
     main()
