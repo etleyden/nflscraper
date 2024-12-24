@@ -6,7 +6,7 @@
 usage: python build_db.py [YEAR] [optional ignore_date]
 ignore_date: YYYY-MM-DD
 """
-import sys, json, requests, warnings, os, re
+import sys, json, requests, warnings, os, re, time
 import psycopg2
 from datetime import datetime
 from geopy.geocoders import Nominatim
@@ -44,13 +44,23 @@ class nflscraper():
         return
     def get_weather_by_game(self, home, away, season, week):
         # handle pre/postseason games. an unusual week number will indicate what "special week" it is
-        if home == "Commanders": home = "Washington"
-        elif away == "Commanders": away = "Washington"
+        if week >= 18 and season <= 2020: week += 1
+        # handle commanders name changes
+        if season > 2020:
+            if home == "Commanders": home = "Washington"
+            elif away == "Commanders": away = "Washington"
+        elif season == 2020:
+                if home == "Washington" and (week < 12 or week == 15): home = "football%20team" if week > 2 else "redskins"
+                elif away == "Washington" and (week < 12 or week == 15): away = "football%20team" if week > 2 else "redskins"
+        else:
+            if home == "Washington": home = "redskins"
+            elif away == "Washington": away = "redskins"
+        # handle non-regular season games
         if week > 18 and season < 2023:
             match(week):
                 case 19: week = "wildcard-weekend"
                 case 20: week = "divisional-playoffs"
-                case 21: week = "%20conf-championships"
+                case 21: week = "%20conf-championships" if season > 2018 else "conf-championships"
                 case 23: week = "superbowl"
         elif week > 18 and season >= 2023:
             match(week):
@@ -62,8 +72,9 @@ class nflscraper():
                 case -2: week = "preseason-week-2"
                 case -3: week = "preseason-week-1"
                 case -4: week = "hall-of-fame-weekend"
-        elif week < 0:
+        elif week <= 0:
             match(week):
+                case 0: week = "pre-season-week-4"
                 case -1: week = "pre-season-week-3"
                 case -2: week = "pre-season-week-2"
                 case -3: week = "pre-season-week-1"
@@ -154,14 +165,25 @@ class nflscraper():
                 print(f"Error: Unable to fetch data. Status code {response.status_code}")
             return None
     def getLocationCoords(self, stadium_name: str):
-        location = nflscraper.__loc.geocode(stadium_name)
-        # if there is an issue, then it likely has to do with the stadium name, so we'll keep City + state
-        while location is None and len(stadium_name) > 0:
-            stadium_name = ' '.join(stadium_name.split()[1:])
-            location = nflscraper.__loc.geocode(stadium_name)
-        if len(stadium_name) <= 0:
-            print("Couldn't find lat/lon")
-            sys.exit()
+        attempts = 0
+        while attempts < 3:
+            if attempts > 0: print("Querying coords...", end="")
+            try:
+                location = nflscraper.__loc.geocode(stadium_name)
+                # if there is an issue, then it likely has to do with the stadium name, so we'll keep City + state
+                while location is None and len(stadium_name) > 0:
+                    stadium_name = ' '.join(stadium_name.split()[1:])
+                    location = nflscraper.__loc.geocode(stadium_name)
+                if len(stadium_name) <= 0:
+                    print("Couldn't find lat/lon")
+                    sys.exit()
+                if attempts > 0: print("Success!")
+                attempts = 99
+            except Exception as err:
+                print(str(err))
+                time.sleep(1)
+                attempts += 1
+                if attempts == 3: return None, None
         return location.latitude, location.longitude
     def events_list(self, year: int) -> dict:
         return requests.get(self.__event_api_string(year)).json()["events"]
@@ -330,7 +352,7 @@ def main():
     print(f"Getting NFL data for {year}")
     events = ns.events_list(year)
     haveSkipped = False
-    for event in events:
+    for idx, event in enumerate(events):
         # see if event is before specified date
         if ignore_prior_to is not None and datetime.strptime(event["date"], "%Y-%m-%dT%H:%MZ").date() <= ignore_prior_to:
             if not haveSkipped: # pretty print the list of skipped games
@@ -404,10 +426,10 @@ def main():
         conn.commit()
         if game["home_team_id"] not in team_ids: team_ids.append(game["home_team_id"])
         if game["away_team_id"] not in team_ids: team_ids.append(game["away_team_id"])
-        print(f"Game {game['id']} (Week {game['week']} | {game['away_team_name']} at {game['home_team_name']}) on [{game['gameday']}]: {len(player_game_stats)} boxscores.")
+        print(f"{idx} | Game {game['id']} (Week {game['week']} | {game['away_team_name']} at {game['home_team_name']}) on [{game['gameday']}]: {len(player_game_stats)} boxscores.")
         num_games += 1
     conn.close()
-    print(f"Collected data for {num_games}, missing weather data for: {missing_weather}")
+    print(f"Collected data for {num_games} games, missing weather data for: {missing_weather}")
 
 if __name__ == "__main__":
     main()

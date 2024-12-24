@@ -1,2 +1,11 @@
 nflweather.com missing data for games:
-401547227 (Falcons at Jaguars)
+401547227 (Falcons at Jaguars) 
+401129055 (Rams at Raiders) 2019
+401136833 (Packers at Raiders) 2019
+401030939 (Saints at Jaguars) 2018
+400927752 (Cowboys at Cardinals) 2017 -- away and home are backwards
+400951779 or 400951776 (Steelers at Chiefs OR Chargers at Raiders) -- Weather was reported "dry", didn't match any pre-existing weather types
+400951750 (Bears at Vikings) 2017, no regex match?
+
+possible missing game data:
+2017 week 1 Buccaneers @ Dolphins
