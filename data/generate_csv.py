@@ -1,8 +1,10 @@
 import sys, os, psycopg2, psycopg2.extras, pprint
 import pandas as pd
 from dotenv import load_dotenv
+from typing import Union
 
 class nfldb():
+    __supported_features = ["score"]
     def __init__(self, db, host, user, password, port):
         self.__database = db
         self.__host = host
@@ -18,7 +20,7 @@ class nfldb():
             print("Error connecting to database: {e}")
     def __connect(self):
         return psycopg2.connect(dbname=self.__database, host=self.__host, user=self.__user, password=self.__password, port=self.__port)
-    def get_n_previous_games(self, game_id, n):
+    def get_n_previous_games(self, game_id: int, n: int) -> list[dict]:
         conn = self.__connect()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute(f"""
@@ -43,8 +45,33 @@ class nfldb():
         """)
         result = cursor.fetchall()
         return [dict(row) for row in result]
-    def aggregate_player_data(self, game_id):
-        pass
+    def aggregate_player_data(self, game_id: int, n_prev_games: int = 5, agg_method: Union[dict, str] = "avg", features: list=__supported_features):
+        """Given a game ID, generate a vector for that game based on the event_id
+
+        Args:
+            game_id (int): The espn event_id. This is used to identify the game within the local database
+            n_prev_games (int): The number of previous games (for each team) to retrieve to generate the 
+                vector. In the case where one of those games contains both teams, it will be used for 
+                both teams in the resulting vector.
+            agg_method (str|dict): The aggregation method used to incorporate statistics about previous 
+                games. Passing a string tells applies the aggregation method to all features. Passing a
+                dict in the format { "feature": "agg_method" } will apply the given agg_method to a 
+                particular feature. The default aggregation method is "avg".
+            features (List[str]): The features to extract from the local db.
+
+        Returns:
+            List[]: The feature that represents the game, with the last element in the list being 
+                the label (0: Home Team won, 1: Away Team won)
+        """
+        
+        previous_games = self.get_n_previous_games(game_id, n_prev_games)
+
+        # Go through each of the features and aggregate them.
+        for feature in features:
+            match(feature):
+                case "score":
+                    
+                    pass
 
 def main():
     load_dotenv()
