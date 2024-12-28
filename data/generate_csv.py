@@ -8,7 +8,7 @@ from typing import Union
 class nfldb():
     __supported_features = {
         "team": ["score", "third_dwn_pct"], # team features will have a home/away stat
-        "player": ["qbrating"], # player features will be found in the boxscores
+        "player": ["qbrating", "passingyards", "rushingyards"], # player features will be found in the boxscores
         "game": [] # game statistics will be team-independent (i.e. weather)
     }
     def __init__(self, db, host, user, password, port):
@@ -178,7 +178,7 @@ class nfldb():
         cursor.execute(f"""SELECT * FROM game WHERE season={year}""")
         games = cursor.fetchall()
         objects = []
-        for game in tqdm(games, desc="Generating Features..."):
+        for game in tqdm(games, desc=f"Generating {year} Features..."):
             objects.append(self.aggregate_team_data(game))
         conn.close()
         return pd.DataFrame(objects)
