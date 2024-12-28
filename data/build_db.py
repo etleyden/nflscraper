@@ -7,7 +7,8 @@ usage: python build_db.py [YEAR] [optional ignore_date]
 ignore_date: YYYY-MM-DD
 """
 import sys, json, requests, warnings, os, re, time
-import psycopg2
+import psycopg2, pprint
+from tqdm import tqdm
 from datetime import datetime
 from geopy.geocoders import Nominatim
 from dotenv import load_dotenv
@@ -17,7 +18,8 @@ import pandas as pd
 def safe_float_conversion(value):
     try:
         return float(value)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as err:
+        #print(err)
         return 0.0
     
 class nflscraper():
@@ -300,9 +302,9 @@ class nflscraper():
                 case "sacks-sackYardsLost":
                     row["sackYardsLost"] = safe_float_conversion(player[stat])
                 case "team_id": # this doesn't go in the row
-                    continue
+                    row["team"] = int(player[stat])
                 case _: 
-                    row[stat] = safe_float_conversion(stat)
+                    row[stat] = safe_float_conversion(player[stat])
         return row
     def rowify_game(self, game, weather):
         if weather is not None:
@@ -314,6 +316,14 @@ class nflscraper():
                        "away_elo", "away_time_possession", "away_third_dwn_pct",
                        "temperature", "precipitation", "season", "week", "windspeed"]
         return {key: game[key] for key in game if (key in game_fields) and (game[key] is not None)}
+    def test_boxscores(self):
+        events = self.events_list(2023)
+        game = self.extract_game_attributes(events[0])
+        boxscore, players = self.interpret_boxscore(game['id'], game)
+        pprint.pp(boxscore[3116188])
+        pprint.pp(self.rowify_player(game['id'], 3116188, boxscore[3116188]))
+
+
 
 def generateInsertStatement(table, obj):
     keys = ', '.join(obj.keys())
@@ -352,6 +362,8 @@ def main():
     print(f"Getting NFL data for {year}")
     events = ns.events_list(year)
     haveSkipped = False
+    progress_bar = tqdm(total = len(events), desc="Processing events...", ncols = 100)
+    statusline = tqdm(total = 0, position=1, bar_format='{desc}')
     for idx, event in enumerate(events):
         # see if event is before specified date
         if ignore_prior_to is not None and datetime.strptime(event["date"], "%Y-%m-%dT%H:%MZ").date() <= ignore_prior_to:
@@ -426,8 +438,9 @@ def main():
         conn.commit()
         if game["home_team_id"] not in team_ids: team_ids.append(game["home_team_id"])
         if game["away_team_id"] not in team_ids: team_ids.append(game["away_team_id"])
-        print(f"{idx} | Game {game['id']} (Week {game['week']} | {game['away_team_name']} at {game['home_team_name']}) on [{game['gameday']}]: {len(player_game_stats)} boxscores.")
         num_games += 1
+        progress_bar.update(1)
+        statusline.set_description_str(f"{idx} | Game {game['id']} (Week {game['week']} | {game['away_team_name']} at {game['home_team_name']}) on [{game['gameday']}]: {len(player_game_stats)} boxscores.")
     conn.close()
     print(f"Collected data for {num_games} games, missing weather data for: {missing_weather}")
 

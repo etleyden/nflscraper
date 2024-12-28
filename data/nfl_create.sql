@@ -78,6 +78,7 @@ CREATE TABLE game(
 CREATE TABLE gameplayer(
     game int,
     player int,
+    team int,
     PRIMARY KEY(game, player),
     FOREIGN KEY (game) REFERENCES game(id),
     FOREIGN KEY (player) REFERENCES player(id),
