@@ -41,11 +41,38 @@ class nflscraper():
         "sun", "fair", "clear", "cloud", "overcast", "humid", "fog", "drizzle", "rain", "thunderstorms", "snow"
         # these could be reduced further in preprocessing
     ]
+    __descriptors_v2 = {
+        1: ["sun", "fair", "clear"],
+        2: ["cloud", "overcast", "humid", "fog", "drizzle"],
+        3: ["rain", "thunderstorms"],
+        4: ["snow"]
+    }
     # Load environment variables from .env file
     load_dotenv()
     warnings.filterwarnings("ignore", category=FutureWarning)
-    def __init__(self):
+    def __init__(self, cursor=None):
+        # TODO: potentially move this to build_db class in generate_csv.py if it improves decoupling and cohesion
+        # this is where we set up __descriptors
+        if cursor is not None:
+            # create the dictionary from the db, else use the default
+            self.__descriptors = nflscraper.load_descriptors(cursor)
+        else:
+            # just in case someone is running an old version of the db. 
+            self.__descriptors = self.__descriptors_v2
+
         return
+    def get_descriptors_v2():
+        return nflscraper.__descriptors_v2
+    def load_descriptors(cursor) -> dict:
+        # create the dictionary from the db, else use the default
+        cursor.execute("select * from precipitation");
+        precipitation = cursor.fetchall()
+        descriptors = {}
+        for i in precipitation:
+            if i[2] not in descriptors:
+                descriptors[i[2]] = []
+            descriptors[i[2]].append(i[1])
+        return descriptors
     def get_weather_by_game(self, home, away, season, week):
         # handle pre/postseason games. an unusual week number will indicate what "special week" it is
         if week >= 18 and season <= 2020: week += 1
@@ -109,14 +136,29 @@ class nflscraper():
         temp = sum([i[2] for i in weather]) / len(weather) # average temperature
         # "worst" weather descriptor
         descriptor = None
-        for d in self.__descriptors: # for each of the possible descriptors
-            for w in weather: # for weather in each of the 4 quarters
-                if d in w[1]: descriptor = d # if its later in the list, it is more severe
-        if descriptor is None:
-            for d in self.__descriptors:
-                for w in weather:
-                    print(f"{d} | {w} | {d in w}")
-            print(f"Could not match descriptor for {[w[1] for w in weather]}")
+
+        # ==== BEGIN REPLACE
+        # TODO: Question complexity of the following four lines?
+        # match to the descriptor with the worst severity
+        for severity_level in self.__descriptors: # for each of the severity levels
+            for predefined_desc in self.__descriptors[severity_level]: # for each of the descriptors in that severity level
+                for scraped_desc in weather:
+                    if predefined_desc in scraped_desc: descriptor = predefined_desc
+        # match to the one of the last quarter
+        if descriptor is None: descriptor = weather[-1:]
+        # ==== END REPLACE
+
+        # ==== BEGIN REMOVE (commented out until I can verify that the new method works, delete upon verification)
+        # for d in self.__descriptors: # for each of the possible descriptors
+        #     for w in weather: # for weather in each of the 4 quarters
+        #         if d in w[1]: descriptor = d # if its later in the list, it is more severe
+        # if descriptor is None:
+        #     for d in self.__descriptors:
+        #         for w in weather:
+        #             print(f"{d} | {w} | {d in w}")
+        #     print(f"Could not match descriptor for {[w[1] for w in weather]}")
+        # ==== END REMOVE
+
         # TODO: grab windspeed
         return {"temperature": temp, "precipitation": descriptor}
     # ==== DEPRECATED ????? ====
@@ -366,7 +408,7 @@ def main():
     player_ids = [player[0] for player in cursor.fetchall()]
     cursor.execute("select id from game")
     game_ids = [game[0] for game in cursor.fetchall()]
-    ns = nflscraper()
+    ns = nflscraper(cursor=cursor)
     print(f"Getting NFL data for {year}")
     events = ns.events_list(year)
     haveSkipped = False
@@ -457,5 +499,17 @@ def main():
     print(f"Collected data for {num_games} games, missing weather data for: {missing_weather}")
 
 if __name__ == "__main__":
-    main()
+    load_dotenv()
+
+    conn = psycopg2.connect(
+        database=os.getenv("NFL_DB_NAME"),
+        host=os.getenv("NFL_DB_HOST"),
+        user=os.getenv("NFL_DB_USER"),
+        password=os.getenv("NFL_DB_PASS"),
+        port=os.getenv("NFL_DB_PORT"))
+    cursor = conn.cursor()
+
+    n = nflscraper(cursor=cursor)
+    # temporarily disabled to focus on precipitation update
+    # main()
     sys.exit()

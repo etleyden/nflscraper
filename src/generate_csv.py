@@ -1,6 +1,18 @@
+"""
+============================
+===    generate_csv.py   ===
+===     Ethan Leyden     ===
+============================
+usage: python generate_csv.py [START_YEAR] [END_YEAR]
+START_YEAR/END_YEAR: YYYY
+If no years are provided, the default range is 2015-2023
+If one year is provided, it is used as the start year (default end year is 2023)
+"""
 import sys, os, psycopg2, psycopg2.extras, pprint
 import pandas as pd
+from build_db import nflscraper
 from statistics import mean
+from datetime import datetime
 from tqdm import tqdm
 from dotenv import load_dotenv
 from typing import Union
@@ -9,7 +21,7 @@ class nfldb():
     __supported_features = {
         "team": ["score", "third_dwn_pct"], # team features will have a home/away stat
         "player": ["adjqbr", "passingyards", "rushingyards", "fumbles", "totaltackles", "sacks", "interceptions", "qbhits"], # player features will be found in the boxscores
-        "game": ["temperature"] # game statistics will be team-independent (i.e. weather)
+        "game": ["temperature", "precipitation"] # game statistics will be team-independent (i.e. weather)
     }
     def __init__(self, db, host, user, password, port):
         self.__database = db
@@ -129,7 +141,13 @@ class nfldb():
         result = cursor.fetchall();
         conn.close()
         return [dict(row) for row in result]
-    def aggregate_team_data(self, game: dict, previous_games: list[dict] = None, n_prev_games: int = 5, agg_method: str = "avg", features: list=__supported_features, discount_factor=0.9):
+    def aggregate_team_data(self, game: dict, 
+        previous_games: list[dict] = None, 
+        n_prev_games: int = 5, 
+        agg_method: str = "avg", 
+        features: list=__supported_features, 
+        weather_descriptors=nflscraper.get_descriptors_v2(),
+        discount_factor=0.9):
         """Given a game ID, generate a vector for that game based on the event_id
 
         Args:
@@ -195,6 +213,19 @@ class nfldb():
                     result[f"home_{feature}"] = nfldb.__discounted_sum(home_stats, discount_factor)
                     result[f"away_{feature}"] = nfldb.__discounted_sum(away_stats, discount_factor) 
         
+        for feature in features["game"]:
+            if feature == "precipitation":
+                precip_severity = None
+                if game["precipitation"] is not None:
+                    for severity in weather_descriptors:
+                        for descriptor in weather_descriptors[severity]:
+                            if descriptor in game["precipitation"]:
+                                precip_severity = severity
+                result["precip_severity"] = precip_severity
+            if feature == "temperature":
+                result["temperature"] = game["temperature"]
+
+            pass
 
         result["game_id"] = game_id
         # Should be switched to -1 / 1
@@ -205,15 +236,17 @@ class nfldb():
         # collect a list of all games in the 2023 season
         conn = self.__connect()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        weather_cursor = conn.cursor()
+        weather_descriptors = nflscraper.load_descriptors(weather_cursor)
         cursor.execute(f"""SELECT * FROM game WHERE season={year}""")
         games = cursor.fetchall()
         objects = []
         for game in tqdm(games, desc=f"Generating {year} Features..."):
-            objects.append(self.aggregate_team_data(game, agg_method="discounted_sum"))
+            objects.append(self.aggregate_team_data(game, agg_method="discounted_sum", weather_descriptors=weather_descriptors))
         conn.close()
         return pd.DataFrame(objects)
 
-def main():
+def main(start_year=2015, end_year=2023):
     load_dotenv()
     db = nfldb(
         db=os.getenv("NFL_DB_NAME"),
@@ -222,15 +255,12 @@ def main():
         password=os.getenv("NFL_DB_PASS"),
         port=os.getenv("NFL_DB_PORT")
     )
-    #prev_games = db.get_n_previous_games(401547637, 5)
-    #game = db.get_game(401547637)
-    #feature = db.aggregate_data(game)
 
-    #boxscores = db.get_previous_game_boxscores(401547637, 5)
-
-    training = pd.concat([db.generate_training_data(year) for year in range(2015, 2024)])
-    training.to_csv("nfl2015_2023.csv", index=False)
+    training = pd.concat([db.generate_training_data(year) for year in range(start_year, end_year+1)])
+    training.to_csv(f"nfl{start_year}_{end_year}.csv", index=False)
 
 if __name__ == "__main__":
-    main()
+    start_year = datetime.strptime(sys.argv[1], "%Y").year if len(sys.argv) > 1 else 2015
+    end_year = datetime.strptime(sys.argv[2], "%Y").year if len(sys.argv) > 2 else 2023
+    main(start_year=start_year, end_year=end_year)
     sys.exit()

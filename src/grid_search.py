@@ -7,7 +7,7 @@ from sklearn.metrics import f1_score
 import train_model #preprocess method
 
 def main():
-    csv_data = pd.read_csv("nfl.csv")
+    csv_data = pd.read_csv("../data/nfl.csv")
     X, y = train_model.preprocess(csv_data)
     #TODO: answer the question: will increasing the amount of data change the optimal parameters?
     svm_params = {

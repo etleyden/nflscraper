@@ -2,10 +2,12 @@ import sys
 import pandas as pd
 import numpy as np
 
+from sklearn.impute import KNNImputer
 from sklearn import tree
 from sklearn.svm import SVC
 from sklearn.model_selection import KFold, GridSearchCV
 from sklearn.metrics import f1_score, accuracy_score
+
 
 import torch
 import torch.nn as nn
@@ -19,6 +21,11 @@ def preprocess(df):
     df.drop('game_id', axis=1, inplace=True)
     # 2. Change labels from Home | Away to -1 | 1, respectively
     df["label"] = df["label"].map({"Home": 0, "Away": 1})
+
+    # TODO: test that this actually works
+    imputer = KNNImputer(n_neighbors=5, weights="uniform")
+    df["precip_severity"] = imputer.fit_transform(df[["precip_severity"]])
+
     # 3. normalize columns
     data = df.drop(['label'], axis=1)
     for column in data.columns:
@@ -57,7 +64,12 @@ class CustomNN(nn.Module):
         return predicted.cpu().numpy()
 
 def main():
-    csv_data = pd.read_csv("nfl.csv")
+    if len(sys.argv) > 1:
+        fpath = sys.argv[1]
+    else:
+        print("Usage: python train_model.py [train.csv]")
+        sys.exit(1)
+    csv_data = pd.read_csv(fpath)
     X, y = preprocess(csv_data)
 
     # models

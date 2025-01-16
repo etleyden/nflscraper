@@ -41,9 +41,17 @@ CREATE TABLE injury(
 );
 
 CREATE TABLE precipitation(
-    id int PRIMARY KEY,
-    name varchar(15)
+    id serial PRIMARY KEY,
+    name varchar(15),
+    severity int
 );
+
+INSERT INTO precipitation (name, severity)
+VALUES
+('sun', 1), ('fair', 1), ('clear', 1),
+('cloud', 2), ('overcast', 2), ('humid', 2), ('fog', 2), ('drizzle', 2),
+('rain', 3), ('thunderstorms', 3),
+('snow', 4);
 
 CREATE TABLE game(
     id int PRIMARY KEY,
