@@ -4,8 +4,8 @@ import numpy as np
 
 from sklearn import tree
 from sklearn.svm import SVC
-from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score
+from sklearn.model_selection import KFold, GridSearchCV
+from sklearn.metrics import f1_score, accuracy_score
 
 import torch
 import torch.nn as nn
@@ -26,6 +26,7 @@ def preprocess(df):
 
     return data, df["label"]
 
+# Question: Is it possible to be successful with deep learning? Do we have enough data?
 class CustomNN(nn.Module):
     def __init__(self, input_features):
         super(CustomNN, self).__init__()
@@ -56,13 +57,13 @@ class CustomNN(nn.Module):
         return predicted.cpu().numpy()
 
 def main():
-    csv_data = pd.read_csv("nfl_2023_v1.csv")
+    csv_data = pd.read_csv("nfl.csv")
     X, y = preprocess(csv_data)
 
     # models
-    dt, dt_score = tree.DecisionTreeClassifier(), []
-    svm, svm_score = SVC(), []
-    nn, nn_score = CustomNN(5), []
+    dt, dt_score, dt_acc = tree.DecisionTreeClassifier(), [], []
+    svm, svm_score, svm_acc = SVC(), [], []
+    nn, nn_score, nn_acc = CustomNN(len(X.columns)), [], []
 
     # five fold cross validation
     kf = KFold(n_splits=5, shuffle=True)
@@ -73,19 +74,24 @@ def main():
         dt.fit(X_train, y_train)
         dt_pred = dt.predict(X_test)
         dt_score.append(f1_score(y_test, dt_pred))
+        dt_acc.append(accuracy_score(y_test, dt_pred))
 
         svm.fit(X_train, y_train)
         svm_pred = svm.predict(X_test)
         svm_score.append(f1_score(y_test, svm_pred))
+        svm_acc.append(accuracy_score(y_test, svm_pred))
 
         nn.fit(torch.tensor(X_train.values, dtype=torch.float32), torch.tensor(y_train.values, dtype=torch.int64))
         nn_pred = nn.predict(torch.tensor(X_test.values, dtype=torch.float32))
-        print(y_test.values, nn_pred)
         nn_score.append(f1_score(y_test, nn_pred))
+        nn_acc.append(accuracy_score(y_test, nn_pred))
 
-    print(f"Decision Tree: {np.mean(dt_score):.4f} +/- {np.std(dt_score):.4f}")
-    print(f"SVM: {np.mean(svm_score):.4f} +/- {np.std(svm_score):.4f}")
-    print(f"Neural Network: {np.mean(nn_score):.4f} +/- {np.std(nn_score):.4f}")
+    print(f"Decision Tree F1: {np.mean(dt_score):.4f} +/- {np.std(dt_score):.4f}")
+    print(f"Decision Tree Acc: {np.mean(dt_acc):.4f} +/- {np.std(dt_acc):.4f}")
+    print(f"SVM F1: {np.mean(svm_score):.4f} +/- {np.std(svm_score):.4f}")
+    print(f"SVM Acc: {np.mean(svm_acc):.4f} +/- {np.std(svm_acc):.4f}")
+    print(f"Neural Network F1: {np.mean(nn_score):.4f} +/- {np.std(nn_score):.4f}")
+    print(f"Neural Network Acc: {np.mean(nn_acc):.4f} +/- {np.std(nn_acc):.4f}")
 
 if __name__ == "__main__":
     main()

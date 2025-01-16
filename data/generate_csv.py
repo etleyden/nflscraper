@@ -8,8 +8,8 @@ from typing import Union
 class nfldb():
     __supported_features = {
         "team": ["score", "third_dwn_pct"], # team features will have a home/away stat
-        "player": ["qbrating", "passingyards", "rushingyards"], # player features will be found in the boxscores
-        "game": [] # game statistics will be team-independent (i.e. weather)
+        "player": ["adjqbr", "passingyards", "rushingyards", "fumbles", "totaltackles", "sacks", "interceptions", "qbhits"], # player features will be found in the boxscores
+        "game": ["temperature"] # game statistics will be team-independent (i.e. weather)
     }
     def __init__(self, db, host, user, password, port):
         self.__database = db
@@ -51,11 +51,22 @@ class nfldb():
 
         home_stats = []
         away_stats = []
-        for game in result[home_team_id]: home_stats.append(result[home_team_id][game])
-        for game in result[away_team_id]: away_stats.append(result[away_team_id][game])
+        #try:
+        if home_team_id in result:
+            for game in result[home_team_id]: home_stats.append(result[home_team_id][game])
+        else: home_stats = [0]
+        if away_team_id in result:
+            for game in result[away_team_id]: away_stats.append(result[away_team_id][game])
+        else: away_stats = [0]
+        #except Exception as err:
+        #    print(home_team_id, away_team_id, feature)
+        #    print(result)
+        #    pprint.pp(boxscores)
+        #    print(err)
 
         return home_stats, away_stats
-
+    def __discounted_sum(arr: list, discount_factor: float) -> float:
+        return sum([(v * (discount_factor ** i)) for i, v in enumerate(arr)])
     def get_game(self, game_id: int):
         conn = self.__connect()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -118,7 +129,7 @@ class nfldb():
         result = cursor.fetchall();
         conn.close()
         return [dict(row) for row in result]
-    def aggregate_team_data(self, game: dict, n_prev_games: int = 5, agg_method: str = "avg", features: list=__supported_features):
+    def aggregate_team_data(self, game: dict, previous_games: list[dict] = None, n_prev_games: int = 5, agg_method: str = "avg", features: list=__supported_features, discount_factor=0.9):
         """Given a game ID, generate a vector for that game based on the event_id
 
         Args:
@@ -146,7 +157,8 @@ class nfldb():
         # TODO: Optimize this function by reducing database reads somehow? 
         # Right now a read is done to get data for previous N games, once 
         # for every game -- a lot of duplicate data being read!
-        previous_games = self.get_n_previous_games(game_id, n_prev_games)
+        if previous_games is None:
+            previous_games = self.get_n_previous_games(game_id, n_prev_games)
 
         # Go through each of the features and aggregate them.
         for feature in features["team"]:
@@ -154,8 +166,17 @@ class nfldb():
                 case _:
                     home_stats = nfldb.__filter_by_team(previous_games, home_team, feature)
                     away_stats = nfldb.__filter_by_team(previous_games, away_team, feature)
+                    #result[feature] = mean(away_stats) - mean(home_stats)
+            match(agg_method):
+                case "avg":
+                    result[f"home_{feature}"] = mean(home_stats)
+                    result[f"away_{feature}"] = mean(away_stats)
+                case "composite_avg":
                     # negative number indicates favor of home team, positive number indicates favor of home team
                     result[feature] = mean(away_stats) - mean(home_stats)
+                case "discounted_sum":
+                    result[f"home_{feature}"] = nfldb.__discounted_sum(home_stats, discount_factor)
+                    result[f"away_{feature}"] = nfldb.__discounted_sum(away_stats, discount_factor)
         
         prev_game_boxscores = self.get_previous_game_boxscores(game_id, n_prev_games)
 
@@ -163,7 +184,16 @@ class nfldb():
             match(feature):
                 case _:
                     home_stats, away_stats = nfldb.__filter_boxscores_by_team(prev_game_boxscores, home_team, away_team, feature)
+            match(agg_method):
+                case "avg":
+                    result[f"home_{feature}"] = mean(home_stats)
+                    result[f"away_{feature}"] = mean(away_stats)
+                case "composite_avg":
+                    # negative number indicates favor of home team, positive number indicates favor of home team
                     result[feature] = mean(away_stats) - mean(home_stats)
+                case "discounted_sum":
+                    result[f"home_{feature}"] = nfldb.__discounted_sum(home_stats, discount_factor)
+                    result[f"away_{feature}"] = nfldb.__discounted_sum(away_stats, discount_factor) 
         
 
         result["game_id"] = game_id
@@ -179,7 +209,7 @@ class nfldb():
         games = cursor.fetchall()
         objects = []
         for game in tqdm(games, desc=f"Generating {year} Features..."):
-            objects.append(self.aggregate_team_data(game))
+            objects.append(self.aggregate_team_data(game, agg_method="discounted_sum"))
         conn.close()
         return pd.DataFrame(objects)
 
@@ -198,8 +228,8 @@ def main():
 
     #boxscores = db.get_previous_game_boxscores(401547637, 5)
 
-    training = pd.concat([db.generate_training_data(year) for year in range(2022, 2024)])
-    training.to_csv("nfl_2023_v1.csv", index=False)
+    training = pd.concat([db.generate_training_data(year) for year in range(2015, 2024)])
+    training.to_csv("nfl2015_2023.csv", index=False)
 
 if __name__ == "__main__":
     main()

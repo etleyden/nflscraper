@@ -34,10 +34,12 @@ class nflscraper():
         1: ["NFC", "E"],
         3: ["NFC", "W"],
     }
+    # TODO: fix the weather situation to reduce weather precipitation down to ~5 severity levels or maybe even fewer
     __descriptors = [ # dictionary to assign weather descriptors to a predefined ranking.
         # these descriptors are based on nflweather.com, the source for our weather data
         # they do not match, but the listed descriptor will be reduced to one of these based on matching
-        "sun", "clear", "cloud", "overcast", "humid", "fog", "drizzle", "rain", "thunderstorms", "snow"
+        "sun", "fair", "clear", "cloud", "overcast", "humid", "fog", "drizzle", "rain", "thunderstorms", "snow"
+        # these could be reduced further in preprocessing
     ]
     # Load environment variables from .env file
     load_dotenv()
@@ -107,9 +109,9 @@ class nflscraper():
         temp = sum([i[2] for i in weather]) / len(weather) # average temperature
         # "worst" weather descriptor
         descriptor = None
-        for d in self.__descriptors:
-            for w in weather:
-                if d in w[1]: descriptor = d
+        for d in self.__descriptors: # for each of the possible descriptors
+            for w in weather: # for weather in each of the 4 quarters
+                if d in w[1]: descriptor = d # if its later in the list, it is more severe
         if descriptor is None:
             for d in self.__descriptors:
                 for w in weather:
@@ -214,8 +216,14 @@ class nflscraper():
                         players[int(athlete_id)] = athlete_name
         home_3rd_eff = api_boxscore["teams"][0]["statistics"][4]["displayValue"].split("-")
         away_3rd_eff = api_boxscore["teams"][1]["statistics"][4]["displayValue"].split("-")
-        game["home_third_dwn_pct"] = safe_float_conversion(home_3rd_eff[0]) / safe_float_conversion(home_3rd_eff[1])
-        game["away_third_dwn_pct"] = safe_float_conversion(away_3rd_eff[0]) / safe_float_conversion(away_3rd_eff[1])
+        try:
+            game["home_third_dwn_pct"] = safe_float_conversion(home_3rd_eff[0]) / safe_float_conversion(home_3rd_eff[1])
+        except ZeroDivisionError as err:
+            game["home_third_dwn_pct"] = 0.0
+        try:
+            game["away_third_dwn_pct"] = safe_float_conversion(away_3rd_eff[0]) / safe_float_conversion(away_3rd_eff[1])
+        except ZeroDivisionError as err:
+            game["away_third_dwn_pct"] = 0.0
         home_time_possession = api_boxscore["teams"][0]["statistics"][24]["displayValue"].split(":")
         away_time_possession = api_boxscore["teams"][1]["statistics"][24]["displayValue"].split(":")
         game["home_time_possession"] = safe_float_conversion(home_time_possession[0]) + safe_float_conversion(home_time_possession[1]) / 60.0
@@ -377,7 +385,11 @@ def main():
             print()
 
         # check if the game is the pro bowl -- no impact on super bowl
-        if event["shortName"] == "AFC VS NFC" or event["shortName"] == "NFC VS AFC": continue
+        if (event["shortName"] == "AFC VS NFC" or 
+            event["shortName"] == "NFC VS AFC" or 
+            "IRV" in event["shortName"] or # rice and irvine are popular team names to choose for the pro bowl
+            "RIC" in event["shortName"]): 
+                continue
 
         # gather the data from the api
         try:

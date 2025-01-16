@@ -1,4 +1,4 @@
-nflweather.com missing data for games:
+nflweather.com missing data for games (as we go farther back in time, the data being scraped is less consistent):
 401547227 (Falcons at Jaguars) 
 401129055 (Rams at Raiders) 2019
 401136833 (Packers at Raiders) 2019
@@ -6,6 +6,6 @@ nflweather.com missing data for games:
 400927752 (Cowboys at Cardinals) 2017 -- away and home are backwards
 400951779 or 400951776 (Steelers at Chiefs OR Chargers at Raiders) -- Weather was reported "dry", didn't match any pre-existing weather types
 400951750 (Bears at Vikings) 2017, no regex match?
-
+(Colts Vikings) 2016 week 15
 possible missing game data:
 2017 week 1 Buccaneers @ Dolphins
