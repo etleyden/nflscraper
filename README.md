@@ -33,8 +33,9 @@ The `data` folder has everything you need:
 Here are some easy TODOs for anyone interested in contributing to the project:
 
 - documentation for `generate_csv.py`, since the configuration options for the CSV are almost infinite.
-- fine-tuning parameters in train_model.py, and potentially adding more suitable models.
+- fine-tuning parameters in train_model.py, and potentially adding more suitable models. (grid searches for SVM and NN)
 - the project is set up as if we're utilizing cuda cores, but it doesn't actually use them
 - update build_db.py to collect game data for prior seasons to 2015 (2023-2015 ~= 2656 samples). As of right now, it'll probably *mostly* work, but there's anomalies in some seasons that don't occur in others that result in imperfect data. I've only optimized up to 2017.
+    - Note that increasing the volume of data is expected to improve results, however at this time, improving the quality of the data in preprocessing is probably more effective.
 - The `dataviewer` directory is supposed to be a semi-separate project focused on being able to comprehensively review the data that we collected, maybe make updates to individual lines if necessary -- but mostly just provide visualization options for the data so we can discover some potentially useful insights. 
 - email me at etleyden@gmail.com with some cool research papers on this topic
