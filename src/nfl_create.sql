@@ -159,4 +159,32 @@ CREATE TABLE gameplayer(
     longPunt real
 );
 
+CREATE TABLE feature_support(
+    id serial PRIMARY KEY,
+    display_name varchar(30),
+    dbname varchar(30),
+    category varchar(30),
+    pipeline int
+);
+
+-- this SHOULD be a comprehensive list of all features ever existing in the pipeline, but that's time-consuming so for now it will 
+-- only be comprehensive of features that can be exported as training data.
+INSERT INTO feature_support(display_name, dbname, category, pipeline)
+VALUES
+-- team category are any statistic with separate values for both home team and away team
+('Score', 'score', 'team', 3),
+('3rd Down Percent', 'third_dwn_pct', 'team', 3),
+-- player category are any statistic that exist in the database as belonging to indivudal players
+('Adjusted QBR (Offense)', 'adjqbr', 'player', 3),
+('Passing Yards (Offense)', 'passingyards', 'player', 3),
+('Rushing Yards (Offense)', 'rushingyards', 'player', 3),
+('Fumbles (Offense)', 'fumbles', 'player', 3),
+('Total Tackles (Defense)', 'totaltackles', 'player', 3),
+('Sacks (Defense)', 'sacks', 'player', 3),
+('Interceptions (Defense)', 'interceptions', 'player', 3),
+('QB Hits (Defense)', 'qbhits', 'player', 3),
+-- game category are any statistic inherent about the game itself, such as weather or location
+('Temperature (Weather)', 'temperature', 'game', 3),
+('Precipitation (Weather)', 'temperature', 'game', 3);
+
 GRANT INSERT, SELECT ON ALL TABLES IN SCHEMA public TO nfl_backend;
