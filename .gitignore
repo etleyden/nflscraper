@@ -7,3 +7,4 @@ __pycache__/
 logfile
 result.txt
 node_modules
+.vscode/

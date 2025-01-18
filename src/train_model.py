@@ -1,13 +1,14 @@
 import sys
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
+from neural_network import NN
 
 from sklearn.impute import KNNImputer
 from sklearn import tree
 from sklearn.svm import SVC
-from sklearn.model_selection import KFold, GridSearchCV
+from sklearn.model_selection import KFold
 from sklearn.metrics import f1_score, accuracy_score
-
 
 import torch
 import torch.nn as nn
@@ -23,8 +24,10 @@ def preprocess(df):
     df["label"] = df["label"].map({"Home": 0, "Away": 1})
 
     # TODO: test that this actually works
-    imputer = KNNImputer(n_neighbors=5, weights="uniform")
-    df["precip_severity"] = imputer.fit_transform(df[["precip_severity"]])
+    imputer = KNNImputer(n_neighbors=10, weights="uniform")
+    if 'precip_severity' in df.columns: df["precip_severity"] = imputer.fit_transform(df[["precip_severity"]])
+    if 'temperature' in df.columns: df["temperature"] = imputer.fit_transform(df[["temperature"]])
+
 
     # 3. normalize columns
     data = df.drop(['label'], axis=1)
@@ -33,35 +36,6 @@ def preprocess(df):
 
     return data, df["label"]
 
-# Question: Is it possible to be successful with deep learning? Do we have enough data?
-class CustomNN(nn.Module):
-    def __init__(self, input_features):
-        super(CustomNN, self).__init__()
-        self.fc1 = nn.Linear(input_features, 10)
-        self.fc2 = nn.Linear(10, 2)
-    def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-    def fit(self, X, y, lr=0.01, epochs=1000):
-        self.to(device)
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.SGD(self.parameters(), lr=lr)
-        for epoch in range(epochs):
-            X = X.to(device)
-            y = y.to(device)
-            outputs = self(X)
-            loss = criterion(outputs, y)
-
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-    def predict(self, X):
-        X = X.to(device)
-        self.eval()
-        y_pred = self(X)
-        _, predicted = torch.max(y_pred, 1)
-        return predicted.cpu().numpy()
 
 def main():
     if len(sys.argv) > 1:
@@ -75,28 +49,31 @@ def main():
     # models
     dt, dt_score, dt_acc = tree.DecisionTreeClassifier(), [], []
     svm, svm_score, svm_acc = SVC(), [], []
-    nn, nn_score, nn_acc = CustomNN(len(X.columns)), [], []
+    nn, nn_score, nn_acc = NN(len(X.columns), device=device), [], []
 
-    # five fold cross validation
-    kf = KFold(n_splits=5, shuffle=True)
-    for i, (train_idx, test_idx) in enumerate(kf.split(X)):
-        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
-        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+    # repeated five fold cross validation to smooth the accuracy measure between runs
+    # NOTE: non-repeating five fold cross validation is highly sensitive to the split in the data, 
+    #   so new shuffles each time helps give more consistent results between runs
+    for j in tqdm(range(15), position=0):
+        kf = KFold(n_splits=5, shuffle=True)
+        for i, (train_idx, test_idx) in tqdm(enumerate(kf.split(X)), total=5, position=1, leave=False):
+            X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+            y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
-        dt.fit(X_train, y_train)
-        dt_pred = dt.predict(X_test)
-        dt_score.append(f1_score(y_test, dt_pred))
-        dt_acc.append(accuracy_score(y_test, dt_pred))
+            dt.fit(X_train, y_train)
+            dt_pred = dt.predict(X_test)
+            dt_score.append(f1_score(y_test, dt_pred))
+            dt_acc.append(accuracy_score(y_test, dt_pred))
 
-        svm.fit(X_train, y_train)
-        svm_pred = svm.predict(X_test)
-        svm_score.append(f1_score(y_test, svm_pred))
-        svm_acc.append(accuracy_score(y_test, svm_pred))
+            svm.fit(X_train, y_train)
+            svm_pred = svm.predict(X_test)
+            svm_score.append(f1_score(y_test, svm_pred))
+            svm_acc.append(accuracy_score(y_test, svm_pred))
 
-        nn.fit(torch.tensor(X_train.values, dtype=torch.float32), torch.tensor(y_train.values, dtype=torch.int64))
-        nn_pred = nn.predict(torch.tensor(X_test.values, dtype=torch.float32))
-        nn_score.append(f1_score(y_test, nn_pred))
-        nn_acc.append(accuracy_score(y_test, nn_pred))
+            nn.fit(torch.tensor(X_train.values, dtype=torch.float32), torch.tensor(y_train.values, dtype=torch.int64))
+            nn_pred = nn.predict(torch.tensor(X_test.values, dtype=torch.float32))
+            nn_score.append(f1_score(y_test, nn_pred))
+            nn_acc.append(accuracy_score(y_test, nn_pred))
 
     print(f"Decision Tree F1: {np.mean(dt_score):.4f} +/- {np.std(dt_score):.4f}")
     print(f"Decision Tree Acc: {np.mean(dt_acc):.4f} +/- {np.std(dt_acc):.4f}")

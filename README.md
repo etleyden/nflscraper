@@ -1,16 +1,16 @@
-# NFL Game Outcome Predictor
+# NFL Prediction Model
 
 This repository is my attempt at trying to predict the outcome of an NFL game based on known factors. 
 
 Here are the best results so far (just a hair above random guessing):
 
 ```
-Decision Tree F1: 0.5042 +/- 0.0459
-Decision Tree Acc: 0.5379 +/- 0.0469
-SVM F1: 0.5472 +/- 0.0205
-SVM Acc: 0.5976 +/- 0.0156
-Neural Network F1: 0.3373 +/- 0.1468
-Neural Network Acc: 0.5710 +/- 0.0405
+Decision Tree F1: 0.4976 +/- 0.0305
+Decision Tree Acc: 0.5299 +/- 0.0258
+SVM F1: 0.4910 +/- 0.0293
+SVM Acc: 0.5719 +/- 0.0211
+Neural Network F1: 0.4821 +/- 0.0992
+Neural Network Acc: 0.5854 +/- 0.0303
 ```
 
 Observations:
@@ -36,7 +36,6 @@ Here are some easy TODOs for anyone interested in contributing to the project:
 
 - documentation for `generate_csv.py`, since the configuration options for the CSV are almost infinite.
 - fine-tuning parameters in train_model.py, and potentially adding more suitable models. (grid searches for SVM and NN)
-- the project is set up as if we're utilizing cuda cores, but it doesn't actually use them
 - update build_db.py to collect game data for prior seasons to 2015 (2023-2015 ~= 2656 samples). As of right now, it'll probably *mostly* work, but there's anomalies in some seasons that don't occur in others that result in imperfect data. I've only optimized up to 2017.
     - Note that increasing the volume of data is expected to improve results, however at this time, improving the quality of the data in preprocessing is probably more effective.
 - The `src/dataviewer` directory is supposed to be a semi-separate project focused on being able to comprehensively review the data that we collected, maybe make updates to individual lines if necessary -- but mostly just provide visualization options for the data so we can discover some potentially useful insights. 

@@ -499,17 +499,5 @@ def main():
     print(f"Collected data for {num_games} games, missing weather data for: {missing_weather}")
 
 if __name__ == "__main__":
-    load_dotenv()
-
-    conn = psycopg2.connect(
-        database=os.getenv("NFL_DB_NAME"),
-        host=os.getenv("NFL_DB_HOST"),
-        user=os.getenv("NFL_DB_USER"),
-        password=os.getenv("NFL_DB_PASS"),
-        port=os.getenv("NFL_DB_PORT"))
-    cursor = conn.cursor()
-
-    n = nflscraper(cursor=cursor)
-    # temporarily disabled to focus on precipitation update
-    # main()
+    main()
     sys.exit()
