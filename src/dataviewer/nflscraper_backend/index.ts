@@ -1,14 +1,17 @@
-const express = require('express');
+import express from "express";
+import cors from "cors";
+import tableRoutes from "./routes/table_routes";
+
 const app = express();
+app.use(cors());
+app.use(express.json());
 const port = 3001
 
 app.get('/', (req, res) => {
     res.send('It\'s working!!');
 });
 
-app.get('/api/get_tables', (req, res) => {
-
-});
+app.use("/api", tableRoutes);
 
 app.listen(port, () => {
     console.log(`Listening on port ${port}`)
