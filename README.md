@@ -22,11 +22,18 @@ Observations:
 
 The `src` folder has everything you need:
 
+### Data Pipeline `src/pipeline/`
 * Set up a Postgres database, and create the relations using `nfl_create.sql`. Put the credentials in a `.env`.
 * Use `build_db.py [YYYY]` to collect data from various APIs, namely the [ESPN API](https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?limit=1000&dates=2023), and [nflweather.com](https://www.nflweather.com/) (huge thanks to the developers of these services).
     * Example Usage: `python build_db.py 2023` (accrues all data for NFL games that occurred in 2023 and writes the data to the DB)
 * Use `generate_csv.py` to generate a ML friendly CSV with aggregated game data, with labels of "Home" and "Away" depending on who won the game.
 * Finally, `train_model.py` will train three different models using 5-fold cross-validation (if there's more or less, its because I forgot to change this README) and output their results. At the time of writing, we have a decision tree, SVM, and neural network with default parameters. 
+
+### Data Viewer
+
+I'm currently working on an interface to view and export the data into an ML-friendly CSV. This is all located in `src/dataviewer` with separate directories for frontend and backend. The frontend is powered by React/Next + Tailwind (with assistance from [daisyUI](https://daisyui.com/)). The backend is Express. Both are written in TypeScript. Note that the backend will need a `.env` containing the database credentials to access the database created by the pipeline.
+
+### Exported Data
 
 `data/` directory contains pre-compiled CSV from my local database so you can jump right into model training without doing a bunch of collection yourself.
 

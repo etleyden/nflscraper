@@ -7,11 +7,11 @@ app.use(cors());
 app.use(express.json());
 const port = 3001
 
+app.use("/api", tableRoutes);
+
 app.get('/', (req, res) => {
     res.send('It\'s working!!');
 });
-
-app.use("/api", tableRoutes);
 
 app.listen(port, () => {
     console.log(`Listening on port ${port}`)
