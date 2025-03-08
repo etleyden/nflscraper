@@ -37,7 +37,7 @@ export function DatabaseTable({tableName, data}: DatabaseTableProps) {
         }
 
         const requestDelay = setTimeout(async () => {
-            let apiEndpoint = `http://localhost:3001/api/table/${tableName}?`
+            let apiEndpoint = `http://localhost:3001/api/table/${tableName}`
 
             let isFirst = true;
             for (const [key, value] of Object.entries(filters)) {
